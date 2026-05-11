@@ -1,2 +1,52 @@
 # verstak
-my ai microvm.nix box
+
+Verstak is a small standalone Nix flake for running Codex inside a QEMU MicroVM.
+
+The first argument is the project directory to mount. If omitted, Verstak uses the current working directory.
+
+```sh
+nix run . -- /path/to/project
+nix run .#gui -- /path/to/project
+nix run .#headless -- /path/to/project
+```
+
+The project is mounted inside the VM at `/workspace/project`. Codex home is `/home/codex`, with Codex configuration under `/home/codex/.codex`.
+
+## Modes
+
+`gui` starts a graphical QEMU MicroVM with Sway, foot, Firefox, screenshot helpers, keyboard and mouse helpers, and `codex-app-server` running in a terminal.
+
+`headless` starts a non-graphical QEMU MicroVM and runs `codex-app-server` as a systemd service.
+
+Both modes use QEMU user networking, 9p shares, and forward the Codex app-server port to the host.
+
+## Connection
+
+The default app-server host URL is:
+
+```sh
+codex --dangerously-bypass-approvals-and-sandbox --remote ws://127.0.0.1:4500
+```
+
+The launcher prints the exact command before starting the VM.
+
+## Environment
+
+- `VERSTAK_STATE_DIR`: VM state directory. Defaults to `$HOME/.local/state/verstak/$project_name`.
+- `VERSTAK_APP_SERVER_PORT`: forwarded app-server port. Defaults to `4500`.
+- `VERSTAK_APP_SERVER_HOST`: host address used for port forwarding. Defaults to `127.0.0.1`.
+- `VERSTAK_MODE`: override the selected app mode with `gui` or `headless`.
+
+## VM Helpers
+
+GUI mode exposes these commands inside the VM:
+
+- `vm-windows`
+- `vm-focus`
+- `vm-screenshot`
+- `vm-key`
+- `vm-type`
+- `vm-click`
+- `vm-move-mouse`
+
+Headless mode does not install Sway, greetd, GUI applications, or GUI helper commands.
