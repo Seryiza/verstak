@@ -1,3 +1,7 @@
+<p align="center">
+  <img width="300" height="300" alt="verstak-logo" src="https://github.com/user-attachments/assets/d20c4eca-4ae9-4eee-ad0c-0d10e3cd4784" />
+</p>
+
 # verstak
 
 Verstak is a small standalone Nix flake for running Codex inside a QEMU MicroVM.
@@ -19,6 +23,11 @@ The project is mounted inside the VM at `/workspace/project`. Codex home is `/ho
 `headless` starts a non-graphical QEMU MicroVM and runs `codex-app-server` as a systemd service.
 
 Both modes use QEMU user networking, 9p shares, and forward the Codex app-server port to the host.
+
+## How I use it
+
+- Emacs GUI debugging to resolve the "fix A, then fix B, then verify A wasn't broken by the B fix" loop
+<img width="480" alt="image" src="https://github.com/user-attachments/assets/71a1e882-ccec-4c8c-a224-04d7b0835b4a" />
 
 ## Connection
 
