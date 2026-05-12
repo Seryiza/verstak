@@ -2,18 +2,22 @@
   description = "QEMU-only Codex MicroVM for project workspaces";
 
   nixConfig = {
-    extra-substituters = [ "https://microvm.cachix.org" ];
-    extra-trusted-public-keys =
-      [ "microvm.cachix.org-1:oXnBc6hRE3eX5rSYdRyMYXnfzcCxC7yKPTbZXALsqys=" ];
+    extra-substituters =
+      [ "https://microvm.cachix.org" "https://cache.numtide.com" ];
+    extra-trusted-public-keys = [
+      "microvm.cachix.org-1:oXnBc6hRE3eX5rSYdRyMYXnfzcCxC7yKPTbZXALsqys="
+      "niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g="
+    ];
   };
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    llm-agents.url = "github:numtide/llm-agents.nix";
     microvm.url = "github:microvm-nix/microvm.nix";
     microvm.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, microvm, ... }:
+  outputs = { self, nixpkgs, llm-agents, microvm, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
 
@@ -22,7 +26,7 @@
       mkPkgs = system:
         import nixpkgs {
           inherit system;
-          overlays = [ microvm.overlay ];
+          overlays = [ microvm.overlay llm-agents.overlays.default ];
         };
     in {
       devShells = forAllSystems (system:
@@ -88,7 +92,6 @@
                     exit 1
                     ;;
                 esac
-
                 case "$mode" in
                   gui)
                     enable_gui=true
@@ -102,12 +105,19 @@
                     ;;
                 esac
 
-                mkdir -p "$state_dir/home" "$state_dir/nix-cache"
+                mkdir -p "$state_dir/home" "$state_dir/codex-auth" "$state_dir/nix-cache"
+
+                host_codex_auth="$HOME/.codex/auth.json"
+                if [ -f "$host_codex_auth" ]; then
+                  ${pkgs.coreutils}/bin/install -m 600 "$host_codex_auth" "$state_dir/codex-auth/auth.json"
+                fi
+
                 export XDG_CACHE_HOME="''${XDG_CACHE_HOME:-$state_dir/nix-cache}"
 
                 runner="$(${pkgs.nix}/bin/nix build --no-link --print-out-paths \
                   -f ${runnerConfig} config.microvm.declaredRunner \
                   --arg nixpkgs 'builtins.getFlake "${nixpkgs}"' \
+                  --arg llmAgents 'builtins.getFlake "${llm-agents}"' \
                   --arg microvm 'builtins.getFlake "${microvm}"' \
                   --argstr system '${system}' \
                   --argstr projectRoot "$project_root" \
@@ -144,6 +154,7 @@
 
       nixosConfigurations.verstak = import ./nix/codex-microvm.nix {
         inherit nixpkgs microvm;
+        llmAgents = llm-agents;
         system = "x86_64-linux";
         projectRoot = toString self;
         projectName = "verstak";

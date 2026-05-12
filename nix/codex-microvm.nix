@@ -1,4 +1,4 @@
-{ nixpkgs, microvm, system ? builtins.currentSystem
+{ nixpkgs, microvm, llmAgents ? null, system ? builtins.currentSystem
 , projectRoot ? builtins.getEnv "PWD"
 , projectName ? builtins.baseNameOf (toString projectRoot)
 , projectMount ? "/workspace/project", stateDir, codexHome ? "/home/codex"
@@ -17,6 +17,8 @@ let
   codexAppServerRemote =
     "ws://${codexAppServerHostAddress}:${toString codexAppServerPort}";
   mode = if enableGui then "gui" else "headless";
+  codexConfigHome = "${codexHome}/.codex";
+  codexAuthSeedMount = "/run/verstak-codex-auth";
 
   agentText = builtins.readFile agentBasePath + "\n\n"
     + builtins.readFile (if enableGui then agentGuiPath else agentHeadlessPath);
@@ -256,10 +258,13 @@ let
         exit 0
       '';
 
+      codexPackage =
+        if llmAgents == null then pkgs.codex else pkgs.llm-agents.codex;
+
       codexAppServer = pkgs.writeShellScriptBin "codex-app-server" ''
         set -euo pipefail
         cd ${projectMount}
-        exec ${pkgs.codex}/bin/codex app-server \
+        exec ${codexPackage}/bin/codex app-server \
           --listen ${codexAppServerListen} \
           -c sandbox_mode='"danger-full-access"' \
           -c approval_policy='"never"' \
@@ -272,7 +277,7 @@ let
       basePackages = with pkgs; [
         bashInteractive
         bubblewrap
-        codex
+        codexPackage
         codexAppServer
         codexEditor
         curl
@@ -283,7 +288,6 @@ let
         nil
         nixfmt
         nixpkgs-fmt
-        openssh
         pciutils
         ripgrep
         statix
@@ -308,234 +312,265 @@ let
         xdg-utils
         ydotool
       ];
-    in {
-      networking.hostName = "verstak";
-      system.stateVersion = lib.trivial.release;
+    in lib.mkMerge [
+      {
+        networking.hostName = "verstak";
+        system.stateVersion = lib.trivial.release;
 
-      nixpkgs.overlays = [ microvm.overlay ];
+        nixpkgs.overlays = [ microvm.overlay ]
+          ++ lib.optionals (llmAgents != null) [ llmAgents.overlays.default ];
 
-      microvm = {
-        inherit hypervisor;
+        microvm = {
+          inherit hypervisor;
 
-        vcpu = 4;
-        mem = 4096;
-        socket = "verstak.sock";
-        graphics.enable = enableGui;
+          vcpu = 4;
+          mem = 4096;
+          socket = "verstak.sock";
+          graphics.enable = enableGui;
 
-        shares = [
-          {
-            tag = "project";
-            proto = shareProto;
-            source = projectRoot;
-            mountPoint = projectMount;
-            cache = "metadata";
-          }
-          {
-            tag = "home";
-            proto = shareProto;
-            source = "${stateDir}/home";
-            mountPoint = codexHome;
-            cache = "metadata";
-          }
-          {
-            tag = "ro-store";
-            proto = shareProto;
-            source = "/nix/store";
-            mountPoint = "/nix/.ro-store";
-            readOnly = true;
-            cache = "always";
-          }
-        ];
+          shares = [
+            {
+              tag = "project";
+              proto = shareProto;
+              source = projectRoot;
+              mountPoint = projectMount;
+              cache = "metadata";
+            }
+            {
+              tag = "home";
+              proto = shareProto;
+              source = "${stateDir}/home";
+              mountPoint = codexHome;
+              cache = "metadata";
+              securityModel = "mapped";
+            }
+            {
+              tag = "codex-auth";
+              proto = shareProto;
+              source = "${stateDir}/codex-auth";
+              mountPoint = codexAuthSeedMount;
+              readOnly = true;
+            }
+            {
+              tag = "ro-store";
+              proto = shareProto;
+              source = "/nix/store";
+              mountPoint = "/nix/.ro-store";
+              readOnly = true;
+              cache = "always";
+            }
+          ];
 
-        writableStoreOverlay = "/nix/.rw-store";
-        volumes = [{
-          image = "${stateDir}/nix-store-overlay.img";
-          mountPoint = config.microvm.writableStoreOverlay;
-          size = 8192;
-        }];
+          writableStoreOverlay = "/nix/.rw-store";
+          volumes = [{
+            image = "${stateDir}/nix-store-overlay.img";
+            mountPoint = config.microvm.writableStoreOverlay;
+            size = 8192;
+          }];
 
-        interfaces = [{
-          type = "user";
-          id = "usernet";
-          mac = "02:00:00:00:00:01";
-        }];
+          interfaces = [{
+            type = "user";
+            id = "usernet";
+            mac = "02:00:00:00:00:01";
+          }];
 
-        forwardPorts = [
-          {
-            from = "host";
-            host.port = 2222;
-            guest.port = 22;
-          }
-          {
+          forwardPorts = [{
             from = "host";
             host.address = codexAppServerHostAddress;
             host.port = codexAppServerPort;
             guest.port = codexAppServerPort;
-          }
-        ];
+          }];
 
-        qemu.serialConsole = !enableGui;
-      };
-
-      boot.kernelModules =
-        lib.optionals enableGui [ "drm" "uinput" "virtio_gpu" ];
-
-      services.openssh.enable = true;
-      networking.firewall.allowedTCPPorts = [ 22 codexAppServerPort ];
-      networking.useDHCP = lib.mkDefault true;
-
-      nix = {
-        enable = true;
-        settings = {
-          experimental-features = [ "nix-command" "flakes" ];
-          sandbox = true;
+          qemu.serialConsole = !enableGui;
         };
-      };
 
-      users.groups.codex.gid = 1000;
-      users.users.codex = {
-        isNormalUser = true;
-        uid = 1000;
-        group = "codex";
-        home = codexHome;
-        createHome = false;
-        extraGroups = [ "wheel" ]
-          ++ lib.optionals enableGui [ "input" "video" ];
-        password = "";
-      };
+        boot.kernelModules =
+          lib.optionals enableGui [ "drm" "uinput" "virtio_gpu" ];
 
-      security.sudo = {
-        enable = true;
-        wheelNeedsPassword = false;
-      };
+        networking.firewall.allowedTCPPorts = [ codexAppServerPort ];
+        networking.useDHCP = lib.mkDefault true;
 
-      environment.sessionVariables = {
-        CODEX_HOME = "${codexHome}/.codex";
-        EDITOR = "codex-editor";
-        GIT_EDITOR = "codex-editor";
-        HUMAN_EDITOR = "nano";
-        VERSTAK_CODEX_APP_SERVER_LISTEN = codexAppServerListen;
-        VERSTAK_CODEX_REMOTE_URL = codexAppServerRemote;
-        VERSTAK_MODE = mode;
-        VERSTAK_PROJECT_MOUNT = projectMount;
-        VISUAL = "codex-editor";
-        XDG_CACHE_HOME = "/tmp/codex-cache";
-      } // lib.optionalAttrs enableGui {
-        XDG_CURRENT_DESKTOP = "sway";
-        XDG_SESSION_TYPE = "wayland";
-        WLR_RENDERER_ALLOW_SOFTWARE = "1";
-      };
-
-      environment.systemPackages = basePackages
-        ++ lib.optionals enableGui guiPackages;
-
-      environment.etc."codex/config.toml".text = ''
-        cli_auth_credentials_store = "file"
-        sandbox_mode = "danger-full-access"
-        approval_policy = "never"
-        default_permissions = ":danger-no-sandbox"
-        model_reasoning_effort = "high"
-
-        [shell_environment_policy]
-        inherit = "all"
-
-        [projects."${projectMount}"]
-        trust_level = "trusted"
-      '';
-
-      environment.etc."codex/AGENTS.md".text = agentText;
-
-      systemd.tmpfiles.rules = [
-        "d ${codexHome}/.codex 0700 codex codex -"
-        "d /tmp/codex-cache 0700 codex codex -"
-        "C ${codexHome}/.codex/config.toml 0600 codex codex - /etc/codex/config.toml"
-        "C ${codexHome}/.codex/AGENTS.md 0600 codex codex - /etc/codex/AGENTS.md"
-      ] ++ lib.optionals enableGui [
-        "d ${codexHome}/.codex/skills 0700 codex codex -"
-        "d ${codexHome}/.codex/skills/vm-gui 0700 codex codex -"
-        "d ${codexHome}/screenshots 0755 codex codex -"
-        "C ${codexHome}/.codex/skills/vm-gui/SKILL.md 0600 codex codex - /etc/codex/skills/vm-gui/SKILL.md"
-      ];
-    } // lib.optionalAttrs enableGui {
-      hardware.graphics.enable = true;
-      services.dbus.enable = true;
-
-      services.udev.extraRules = ''
-        KERNEL=="uinput", MODE="0660", GROUP="input", OPTIONS+="static_node=uinput"
-      '';
-
-      systemd.services.ydotoold = {
-        description = "ydotool virtual input daemon";
-        wantedBy = [ "multi-user.target" ];
-        serviceConfig = {
-          ExecStart =
-            "${pkgs.ydotool}/bin/ydotoold --socket-path=/tmp/.ydotool_socket --socket-perm=0666";
-          Restart = "on-failure";
+        nix = {
+          enable = true;
+          settings = {
+            experimental-features = [ "nix-command" "flakes" ];
+            sandbox = true;
+          };
         };
-      };
 
-      programs.sway = {
-        enable = true;
-        wrapperFeatures.gtk = true;
-      };
-
-      services.greetd = {
-        enable = true;
-        settings.default_session = {
-          user = "codex";
-          command = "${pkgs.sway}/bin/sway --config /etc/sway/config";
+        users.groups.codex.gid = 1000;
+        users.users.codex = {
+          isNormalUser = true;
+          uid = 1000;
+          group = "codex";
+          home = codexHome;
+          createHome = false;
+          extraGroups = [ "wheel" ]
+            ++ lib.optionals enableGui [ "input" "video" ];
+          password = "";
         };
-      };
 
-      xdg.portal = {
-        enable = true;
-        wlr.enable = true;
-        extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
-      };
+        security.sudo = {
+          enable = true;
+          wheelNeedsPassword = false;
+        };
 
-      fonts.packages = with pkgs; [ dejavu_fonts nerd-fonts.jetbrains-mono ];
-
-      environment.etc."codex/skills/vm-gui/SKILL.md".source = guiSkillPath;
-
-      environment.etc."sway/config".text = ''
-        set $mod Mod1
-        set $term ${pkgs.foot}/bin/foot
-
-        output * bg #1d2021 solid_color
-        input * xkb_layout us
-        workspace_layout tabbed
-
-        exec_always ${pkgs.coreutils}/bin/mkdir -p ${codexHome}/screenshots ${codexHome}/.codex
-        exec ${pkgs.foot}/bin/foot --title codex-app-server --working-directory ${projectMount} ${codexAppServer}/bin/codex-app-server
-
-        bindsym Print exec ${vmScreenshot}/bin/vm-screenshot
-        bindsym $mod+Return exec ${pkgs.foot}/bin/foot --working-directory ${projectMount}
-        bindsym $mod+b exec ${pkgs.firefox}/bin/firefox
-        bindsym $mod+Shift+e exec ${pkgs.systemd}/bin/systemctl poweroff
-      '';
-    } // lib.optionalAttrs (!enableGui) {
-      systemd.services.codex-app-server = {
-        description = "Codex app server";
-        after = [ "network-online.target" ];
-        wants = [ "network-online.target" ];
-        wantedBy = [ "multi-user.target" ];
-        path = basePackages;
-        environment = {
-          CODEX_HOME = "${codexHome}/.codex";
+        environment.sessionVariables = {
+          CODEX_HOME = codexConfigHome;
           EDITOR = "codex-editor";
           GIT_EDITOR = "codex-editor";
+          HUMAN_EDITOR = "nano";
+          VERSTAK_CODEX_APP_SERVER_LISTEN = codexAppServerListen;
+          VERSTAK_CODEX_REMOTE_URL = codexAppServerRemote;
+          VERSTAK_MODE = mode;
+          VERSTAK_PROJECT_MOUNT = projectMount;
           VISUAL = "codex-editor";
+          XDG_CACHE_HOME = "/tmp/codex-cache";
+        } // lib.optionalAttrs enableGui {
+          XDG_CURRENT_DESKTOP = "sway";
+          XDG_SESSION_TYPE = "wayland";
+          WLR_RENDERER_ALLOW_SOFTWARE = "1";
         };
-        serviceConfig = {
-          User = "codex";
-          Group = "codex";
-          WorkingDirectory = projectMount;
-          ExecStart = "${codexAppServer}/bin/codex-app-server";
-          Restart = "on-failure";
-          RestartSec = "2s";
+
+        environment.systemPackages = basePackages
+          ++ lib.optionals enableGui guiPackages;
+
+        environment.etc."codex/config.toml".text = ''
+          cli_auth_credentials_store = "file"
+          sandbox_mode = "danger-full-access"
+          approval_policy = "never"
+          default_permissions = ":danger-no-sandbox"
+          model_reasoning_effort = "high"
+
+          [shell_environment_policy]
+          inherit = "all"
+
+          [projects."${projectMount}"]
+          trust_level = "trusted"
+        '';
+
+        environment.etc."codex/AGENTS.md".text = agentText;
+
+        systemd.tmpfiles.rules = [
+          "d ${codexHome}/.codex 0700 codex codex -"
+          "d /tmp/codex-cache 0700 codex codex -"
+          "C ${codexHome}/.codex/config.toml 0600 codex codex - /etc/codex/config.toml"
+          "C ${codexHome}/.codex/AGENTS.md 0600 codex codex - /etc/codex/AGENTS.md"
+        ] ++ lib.optionals enableGui [
+          "d ${codexHome}/.codex/skills 0700 codex codex -"
+          "d ${codexHome}/.codex/skills/vm-gui 0700 codex codex -"
+          "d ${codexHome}/screenshots 0755 codex codex -"
+          "C ${codexHome}/.codex/skills/vm-gui/SKILL.md 0600 codex codex - /etc/codex/skills/vm-gui/SKILL.md"
+        ];
+      }
+      (lib.mkIf enableGui {
+        hardware.graphics.enable = true;
+        services.dbus.enable = true;
+
+        services.udev.extraRules = ''
+          KERNEL=="uinput", MODE="0660", GROUP="input", OPTIONS+="static_node=uinput"
+        '';
+
+        systemd.services.ydotoold = {
+          description = "ydotool virtual input daemon";
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            ExecStart =
+              "${pkgs.ydotool}/bin/ydotoold --socket-path=/tmp/.ydotool_socket --socket-perm=0666";
+            Restart = "on-failure";
+          };
         };
-      };
-    };
+
+        programs.sway = {
+          enable = true;
+          wrapperFeatures.gtk = true;
+        };
+
+        services.greetd = {
+          enable = true;
+          settings.default_session = {
+            user = "codex";
+            command = "${pkgs.sway}/bin/sway --config /etc/sway/config";
+          };
+        };
+
+        xdg.portal = {
+          enable = true;
+          wlr.enable = true;
+          extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+        };
+
+        fonts.packages = with pkgs; [ dejavu_fonts nerd-fonts.jetbrains-mono ];
+
+        environment.etc."codex/skills/vm-gui/SKILL.md".source = guiSkillPath;
+
+        environment.etc."sway/config".text = ''
+          set $mod Mod1
+          set $term ${pkgs.foot}/bin/foot
+
+          output * bg #1d2021 solid_color
+          input * xkb_layout us
+          workspace_layout tabbed
+
+          exec_always ${pkgs.coreutils}/bin/mkdir -p ${codexHome}/screenshots ${codexHome}/.codex
+          exec ${pkgs.foot}/bin/foot --title codex-app-server --working-directory ${projectMount} ${codexAppServer}/bin/codex-app-server
+
+          bindsym Print exec ${vmScreenshot}/bin/vm-screenshot
+          bindsym $mod+Return exec ${pkgs.foot}/bin/foot --working-directory ${projectMount}
+          bindsym $mod+b exec ${pkgs.firefox}/bin/firefox
+          bindsym $mod+Shift+e exec ${pkgs.systemd}/bin/systemctl poweroff
+        '';
+      })
+      (lib.mkIf (!enableGui) {
+        systemd = {
+          services.verstak-codex-auth = {
+            description = "Copy host Codex auth into guest Codex home";
+            after = [ "local-fs.target" "systemd-tmpfiles-setup.service" ];
+            wants = [ "systemd-tmpfiles-setup.service" ];
+            before = [ "codex-app-server.service" ];
+            wantedBy = [ "multi-user.target" ];
+            path = [ pkgs.coreutils ];
+            script = ''
+              if [ -f ${codexAuthSeedMount}/auth.json ]; then
+                install -o codex -g codex -m 600 ${codexAuthSeedMount}/auth.json ${codexConfigHome}/auth.json
+              fi
+            '';
+            serviceConfig.Type = "oneshot";
+          };
+
+          services.codex-app-server = {
+            description = "Codex app server";
+            after = [
+              "network-online.target"
+              "systemd-tmpfiles-setup.service"
+              "verstak-codex-auth.service"
+            ];
+            wants = [
+              "network-online.target"
+              "systemd-tmpfiles-setup.service"
+              "verstak-codex-auth.service"
+            ];
+            wantedBy = [ "multi-user.target" ];
+            path = basePackages;
+            environment = {
+              CODEX_HOME = codexConfigHome;
+              EDITOR = "codex-editor";
+              GIT_EDITOR = "codex-editor";
+              VISUAL = "codex-editor";
+              XDG_CACHE_HOME = "/tmp/codex-cache";
+            };
+            serviceConfig = {
+              User = "codex";
+              Group = "codex";
+              WorkingDirectory = projectMount;
+              ExecStart = "${codexAppServer}/bin/codex-app-server";
+              Restart = "on-failure";
+              RestartSec = "2s";
+            };
+          };
+        };
+      })
+    ];
 in lib.nixosSystem {
   inherit system;
   modules = [ microvm.nixosModules.microvm module ];
