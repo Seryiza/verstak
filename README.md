@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="300" height="300" alt="verstak-logo" src="https://github.com/user-attachments/assets/d20c4eca-4ae9-4eee-ad0c-0d10e3cd4784" />
+  <img width="400" height="240" alt="verstak-logo" src="https://github.com/user-attachments/assets/0faeab58-3d4f-43aa-8347-f1c017982951" />
 </p>
 
 # verstak
