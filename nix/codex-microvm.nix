@@ -3,7 +3,8 @@
 , projectName ? builtins.baseNameOf (toString projectRoot)
 , projectMount ? "/workspace/project", stateDir, codexHome ? "/home/codex"
 , enableGui ? true, memMb ? 8192, codexAppServerPort ? 4500
-, codexAppServerHostAddress ? "127.0.0.1", storeOverlaySizeMb ? 16384
+, codexAppServerHostAddress ? "127.0.0.1", storeOverlaySizeMb ? 4096
+, tmpfsSize ? "1G"
 , agentBasePath ? ../agents/vm-base.md
 , agentGuiPath ? ../agents/vm-gui.md
 , agentHeadlessPath ? ../agents/vm-headless.md
@@ -282,11 +283,13 @@ let
         codexAppServer
         codexEditor
         curl
+        direnv
         fd
         git
         jq
         nano
         nil
+        nix-direnv
         nixfmt
         nixpkgs-fmt
         pciutils
@@ -389,7 +392,7 @@ let
         boot.kernelModules =
           lib.optionals enableGui [ "drm" "uinput" "virtio_gpu" ];
         boot.tmp.useTmpfs = true;
-        boot.tmp.tmpfsSize = "8G";
+        boot.tmp.tmpfsSize = tmpfsSize;
 
         networking.firewall.allowedTCPPorts = [ codexAppServerPort ];
         networking.useDHCP = lib.mkDefault true;

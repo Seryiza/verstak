@@ -85,7 +85,8 @@
                 codex_app_server_port="''${VERSTAK_APP_SERVER_PORT:-4500}"
                 codex_app_server_host_address="''${VERSTAK_APP_SERVER_HOST:-127.0.0.1}"
                 mem_mb="''${VERSTAK_MEM_MB:-8192}"
-                store_overlay_size_mb="''${VERSTAK_STORE_OVERLAY_MB:-16384}"
+                store_overlay_size_mb="''${VERSTAK_STORE_OVERLAY_MB:-4096}"
+                tmpfs_size="''${VERSTAK_TMPFS_SIZE:-1G}"
                 mode="''${VERSTAK_MODE:-${defaultMode}}"
 
                 case "$codex_app_server_port" in
@@ -106,6 +107,10 @@
                     exit 1
                     ;;
                 esac
+                if ! [[ "$tmpfs_size" =~ ^[0-9]+([KkMmGgTtPpEe]?|%)$ ]]; then
+                  echo "VERSTAK_TMPFS_SIZE must be a tmpfs size such as 1024M, 1G, or 50%." >&2
+                  exit 1
+                fi
                 case "$mode" in
                   gui)
                     enable_gui=true
@@ -140,6 +145,7 @@
                   --arg enableGui "$enable_gui" \
                   --arg memMb "$mem_mb" \
                   --arg storeOverlaySizeMb "$store_overlay_size_mb" \
+                  --argstr tmpfsSize "$tmpfs_size" \
                   --arg codexAppServerPort "$codex_app_server_port" \
                   --argstr codexAppServerHostAddress "$codex_app_server_host_address" \
                   --arg agentBasePath '${./agents/vm-base.md}' \
@@ -154,6 +160,7 @@
                 echo "  Project: $project_root"
                 echo "  State:   $state_dir"
                 echo "  Memory:  $mem_mb MB"
+                echo "  /tmp:    $tmpfs_size tmpfs"
                 echo "  Nix store overlay: $store_overlay_size_mb MiB"
                 echo "Codex App Server:"
                 echo "  VM:   starts codex-app-server automatically"

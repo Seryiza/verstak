@@ -18,6 +18,7 @@ The default app server port is `4500`. Override launcher behavior with:
 - `VERSTAK_APP_SERVER_HOST`
 - `VERSTAK_MEM_MB`
 - `VERSTAK_STORE_OVERLAY_MB`
+- `VERSTAK_TMPFS_SIZE`
 - `VERSTAK_MODE`
 
 Inside the VM, Codex runs with full permissions inside the MicroVM boundary: no Codex sandbox and no approval prompts. Treat the MicroVM as the security boundary and review generated changes before committing them.
