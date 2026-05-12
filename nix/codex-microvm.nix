@@ -2,7 +2,7 @@
 , projectRoot ? builtins.getEnv "PWD"
 , projectName ? builtins.baseNameOf (toString projectRoot)
 , projectMount ? "/workspace/project", stateDir, codexHome ? "/home/codex"
-, enableGui ? true, codexAppServerPort ? 4500
+, enableGui ? true, memMb ? 8192, codexAppServerPort ? 4500
 , codexAppServerHostAddress ? "127.0.0.1", agentBasePath ? ../agents/vm-base.md
 , agentGuiPath ? ../agents/vm-gui.md
 , agentHeadlessPath ? ../agents/vm-headless.md
@@ -324,7 +324,7 @@ let
           inherit hypervisor;
 
           vcpu = 4;
-          mem = 4096;
+          mem = memMb;
           socket = "verstak.sock";
           graphics.enable = enableGui;
 
@@ -335,6 +335,7 @@ let
               source = projectRoot;
               mountPoint = projectMount;
               cache = "metadata";
+              securityModel = "mapped";
             }
             {
               tag = "home";
@@ -389,6 +390,14 @@ let
 
         networking.firewall.allowedTCPPorts = [ codexAppServerPort ];
         networking.useDHCP = lib.mkDefault true;
+
+        fileSystems.${projectMount}.options = lib.mkForce [
+          "trans=virtio"
+          "version=9p2000.L"
+          "msize=65536"
+          "access=any"
+          "x-systemd.after=systemd-modules-load.service"
+        ];
 
         nix = {
           enable = true;
@@ -450,8 +459,14 @@ let
         '';
 
         environment.etc."codex/AGENTS.md".text = agentText;
+        environment.etc."gitconfig".text = ''
+          [safe]
+            directory = ${projectMount}
+        '';
 
         systemd.tmpfiles.rules = [
+          "Z ${projectMount} - codex codex -"
+          "d ${codexHome} 0755 codex codex -"
           "d ${codexHome}/.codex 0700 codex codex -"
           "d /tmp/codex-cache 0700 codex codex -"
           "C ${codexHome}/.codex/config.toml 0600 codex codex - /etc/codex/config.toml"

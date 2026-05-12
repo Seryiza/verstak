@@ -84,11 +84,18 @@
                 state_dir="''${VERSTAK_STATE_DIR:-$HOME/.local/state/verstak/$project_name}"
                 codex_app_server_port="''${VERSTAK_APP_SERVER_PORT:-4500}"
                 codex_app_server_host_address="''${VERSTAK_APP_SERVER_HOST:-127.0.0.1}"
+                mem_mb="''${VERSTAK_MEM_MB:-8192}"
                 mode="''${VERSTAK_MODE:-${defaultMode}}"
 
                 case "$codex_app_server_port" in
                   ""|*[!0-9]*)
                     echo "VERSTAK_APP_SERVER_PORT must be a decimal TCP port." >&2
+                    exit 1
+                    ;;
+                esac
+                case "$mem_mb" in
+                  ""|*[!0-9]*)
+                    echo "VERSTAK_MEM_MB must be a decimal number of megabytes." >&2
                     exit 1
                     ;;
                 esac
@@ -124,6 +131,7 @@
                   --argstr projectName "$project_name" \
                   --argstr stateDir "$state_dir" \
                   --arg enableGui "$enable_gui" \
+                  --arg memMb "$mem_mb" \
                   --arg codexAppServerPort "$codex_app_server_port" \
                   --argstr codexAppServerHostAddress "$codex_app_server_host_address" \
                   --arg agentBasePath '${./agents/vm-base.md}' \
@@ -137,6 +145,7 @@
                 echo "  Mode:    $mode"
                 echo "  Project: $project_root"
                 echo "  State:   $state_dir"
+                echo "  Memory:  $mem_mb MB"
                 echo "Codex App Server:"
                 echo "  VM:   starts codex-app-server automatically"
                 echo "  Host: codex --dangerously-bypass-approvals-and-sandbox --remote ws://$codex_app_server_host_address:$codex_app_server_port"

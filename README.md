@@ -44,6 +44,7 @@ The launcher prints the exact command before starting the VM.
 - `VERSTAK_STATE_DIR`: VM state directory. Defaults to `$HOME/.local/state/verstak/$project_name`.
 - `VERSTAK_APP_SERVER_PORT`: forwarded app-server port. Defaults to `4500`.
 - `VERSTAK_APP_SERVER_HOST`: host address used for port forwarding. Defaults to `127.0.0.1`.
+- `VERSTAK_MEM_MB`: VM memory in megabytes. Defaults to `8192`.
 - `VERSTAK_MODE`: override the selected app mode with `gui` or `headless`.
 
 ## VM Helpers
