@@ -3,7 +3,8 @@
 , projectName ? builtins.baseNameOf (toString projectRoot)
 , projectMount ? "/workspace/project", stateDir, codexHome ? "/home/codex"
 , enableGui ? true, memMb ? 8192, codexAppServerPort ? 4500
-, codexAppServerHostAddress ? "127.0.0.1", agentBasePath ? ../agents/vm-base.md
+, codexAppServerHostAddress ? "127.0.0.1", storeOverlaySizeMb ? 16384
+, agentBasePath ? ../agents/vm-base.md
 , agentGuiPath ? ../agents/vm-gui.md
 , agentHeadlessPath ? ../agents/vm-headless.md
 , guiSkillPath ? ../skills/vm-gui/SKILL.md, }:
@@ -366,7 +367,7 @@ let
           volumes = [{
             image = "${stateDir}/nix-store-overlay.img";
             mountPoint = config.microvm.writableStoreOverlay;
-            size = 8192;
+            size = storeOverlaySizeMb;
           }];
 
           interfaces = [{
@@ -387,6 +388,8 @@ let
 
         boot.kernelModules =
           lib.optionals enableGui [ "drm" "uinput" "virtio_gpu" ];
+        boot.tmp.useTmpfs = true;
+        boot.tmp.tmpfsSize = "8G";
 
         networking.firewall.allowedTCPPorts = [ codexAppServerPort ];
         networking.useDHCP = lib.mkDefault true;

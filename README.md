@@ -15,6 +15,8 @@ nix run .#headless -- /path/to/project
 ```
 
 The project is mounted inside the VM at `/workspace/project`. Codex home is `/home/codex`, with Codex configuration under `/home/codex/.codex`.
+The writable Nix store overlay is backed by a MicroVM volume and defaults to 16384 MiB.
+`/tmp` is an executable tmpfs capped at 8 GiB.
 
 ## Modes
 
@@ -45,6 +47,7 @@ The launcher prints the exact command before starting the VM.
 - `VERSTAK_APP_SERVER_PORT`: forwarded app-server port. Defaults to `4500`.
 - `VERSTAK_APP_SERVER_HOST`: host address used for port forwarding. Defaults to `127.0.0.1`.
 - `VERSTAK_MEM_MB`: VM memory in megabytes. Defaults to `8192`.
+- `VERSTAK_STORE_OVERLAY_MB`: writable Nix store overlay volume size in mebibytes. Defaults to `16384`.
 - `VERSTAK_MODE`: override the selected app mode with `gui` or `headless`.
 
 ## VM Helpers

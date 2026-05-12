@@ -85,6 +85,7 @@
                 codex_app_server_port="''${VERSTAK_APP_SERVER_PORT:-4500}"
                 codex_app_server_host_address="''${VERSTAK_APP_SERVER_HOST:-127.0.0.1}"
                 mem_mb="''${VERSTAK_MEM_MB:-8192}"
+                store_overlay_size_mb="''${VERSTAK_STORE_OVERLAY_MB:-16384}"
                 mode="''${VERSTAK_MODE:-${defaultMode}}"
 
                 case "$codex_app_server_port" in
@@ -96,6 +97,12 @@
                 case "$mem_mb" in
                   ""|*[!0-9]*)
                     echo "VERSTAK_MEM_MB must be a decimal number of megabytes." >&2
+                    exit 1
+                    ;;
+                esac
+                case "$store_overlay_size_mb" in
+                  ""|*[!0-9]*)
+                    echo "VERSTAK_STORE_OVERLAY_MB must be a decimal number of mebibytes." >&2
                     exit 1
                     ;;
                 esac
@@ -132,6 +139,7 @@
                   --argstr stateDir "$state_dir" \
                   --arg enableGui "$enable_gui" \
                   --arg memMb "$mem_mb" \
+                  --arg storeOverlaySizeMb "$store_overlay_size_mb" \
                   --arg codexAppServerPort "$codex_app_server_port" \
                   --argstr codexAppServerHostAddress "$codex_app_server_host_address" \
                   --arg agentBasePath '${./agents/vm-base.md}' \
@@ -146,6 +154,7 @@
                 echo "  Project: $project_root"
                 echo "  State:   $state_dir"
                 echo "  Memory:  $mem_mb MB"
+                echo "  Nix store overlay: $store_overlay_size_mb MiB"
                 echo "Codex App Server:"
                 echo "  VM:   starts codex-app-server automatically"
                 echo "  Host: codex --dangerously-bypass-approvals-and-sandbox --remote ws://$codex_app_server_host_address:$codex_app_server_port"
