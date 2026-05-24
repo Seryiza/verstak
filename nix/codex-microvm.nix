@@ -4,8 +4,7 @@
 , projectMount ? "/workspace/project", stateDir, codexHome ? "/home/codex"
 , enableGui ? true, memMb ? 8192, codexAppServerPort ? 4500
 , codexAppServerHostAddress ? "127.0.0.1", storeOverlaySizeMb ? 4096
-, tmpfsSize ? "1G"
-, agentBasePath ? ../agents/vm-base.md
+, tmpfsSize ? "1G", agentBasePath ? ../agents/vm-base.md
 , agentGuiPath ? ../agents/vm-gui.md
 , agentHeadlessPath ? ../agents/vm-headless.md
 , guiSkillPath ? ../skills/vm-gui/SKILL.md, }:
@@ -263,6 +262,17 @@ let
       codexPackage =
         if llmAgents == null then pkgs.codex else pkgs.llm-agents.codex;
 
+      seedCodexAuth = pkgs.writeShellScriptBin "verstak-seed-codex-auth" ''
+        set -euo pipefail
+
+        install -d -o codex -g codex -m 700 ${codexConfigHome}
+        if [ -f ${codexAuthSeedMount}/auth.json ]; then
+          install -o codex -g codex -m 600 ${codexAuthSeedMount}/auth.json ${codexConfigHome}/auth.json
+        else
+          rm -f ${codexConfigHome}/auth.json
+        fi
+      '';
+
       codexAppServer = pkgs.writeShellScriptBin "codex-app-server" ''
         set -euo pipefail
         cd ${projectMount}
@@ -470,6 +480,20 @@ let
             directory = ${projectMount}
         '';
 
+        systemd.services.verstak-codex-auth = {
+          description = "Copy host Codex auth into guest Codex home";
+          after = [ "local-fs.target" "systemd-tmpfiles-setup.service" ];
+          wants = [ "systemd-tmpfiles-setup.service" ];
+          before = [ "codex-app-server.service" ]
+            ++ lib.optionals enableGui [ "greetd.service" ];
+          wantedBy = [ "multi-user.target" ];
+          path = [ pkgs.coreutils ];
+          serviceConfig = {
+            Type = "oneshot";
+            ExecStart = "${seedCodexAuth}/bin/verstak-seed-codex-auth";
+          };
+        };
+
         systemd.tmpfiles.rules = [
           "Z ${projectMount} - codex codex -"
           "d ${codexHome} 0755 codex codex -"
@@ -544,21 +568,6 @@ let
       })
       (lib.mkIf (!enableGui) {
         systemd = {
-          services.verstak-codex-auth = {
-            description = "Copy host Codex auth into guest Codex home";
-            after = [ "local-fs.target" "systemd-tmpfiles-setup.service" ];
-            wants = [ "systemd-tmpfiles-setup.service" ];
-            before = [ "codex-app-server.service" ];
-            wantedBy = [ "multi-user.target" ];
-            path = [ pkgs.coreutils ];
-            script = ''
-              if [ -f ${codexAuthSeedMount}/auth.json ]; then
-                install -o codex -g codex -m 600 ${codexAuthSeedMount}/auth.json ${codexConfigHome}/auth.json
-              fi
-            '';
-            serviceConfig.Type = "oneshot";
-          };
-
           services.codex-app-server = {
             description = "Codex app server";
             after = [

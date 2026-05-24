@@ -129,6 +129,8 @@
                 host_codex_auth="$HOME/.codex/auth.json"
                 if [ -f "$host_codex_auth" ]; then
                   ${pkgs.coreutils}/bin/install -m 600 "$host_codex_auth" "$state_dir/codex-auth/auth.json"
+                else
+                  ${pkgs.coreutils}/bin/rm -f "$state_dir/codex-auth/auth.json"
                 fi
 
                 export XDG_CACHE_HOME="''${XDG_CACHE_HOME:-$state_dir/nix-cache}"
