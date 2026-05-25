@@ -2,12 +2,27 @@
 
 let
   cfg = config.verstak;
+  agentInstructions = import ../lib/agent-instructions.nix { inherit config; };
   codexTools = import ../tools/codex.nix { inherit config lib llmAgents pkgs; };
-  agentText = builtins.readFile cfg.docs.agentBasePath + "\n\n"
-    + builtins.readFile (if cfg.gui.enable then
-      cfg.docs.agentGuiPath
-    else
-      cfg.docs.agentHeadlessPath);
+  agentText = agentInstructions.mkAgentText ''
+
+    Codex home is ${codexTools.codexConfigHome}.
+
+    The default EDITOR, VISUAL, and GIT_EDITOR are codex-editor, a
+    non-interactive no-op helper so tools that spawn an editor do not block
+    the agent. Use a real editor directly only when needed.
+
+    When launched with verstak codex, the VM starts codex app-server on
+    ${codexTools.codexAppServerListen} by default. The host normally
+    connects with:
+
+        codex --dangerously-bypass-approvals-and-sandbox --remote ${codexTools.codexAppServerRemote}
+
+    Inside the VM boundary, Codex uses approval_policy = "never",
+    sandbox_mode = "danger-full-access", default_permissions =
+    ":danger-no-sandbox", and model_reasoning_effort = "high" in both
+    config and app-server command-line overrides.
+  '';
 in {
   config = lib.mkIf cfg.codex.enable {
     environment.systemPackages = codexTools.packages;
