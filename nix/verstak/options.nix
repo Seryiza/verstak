@@ -1,7 +1,7 @@
 { config, lib, ... }:
 
 let
-  inherit (lib) mkOption types;
+  inherit (lib) mkEnableOption mkOption types;
   pathLike = types.oneOf [ types.path types.str ];
 in {
   options.verstak = {
@@ -72,18 +72,10 @@ in {
       };
     };
 
-    gui.enable = mkOption {
-      type = types.bool;
-      default = false;
-      description = "Enable the Sway GUI profile.";
-    };
+    gui.enable = mkEnableOption "the Sway GUI profile";
 
     codex = {
-      enable = mkOption {
-        type = types.bool;
-        default = false;
-        description = "Enable Codex CLI integration.";
-      };
+      enable = mkEnableOption "Codex CLI integration";
 
       appServer = {
         port = mkOption {
