@@ -4,8 +4,10 @@
 
 # verstak
 
-Verstak is a small standalone Nix flake for running commands inside a QEMU
-MicroVM.
+Verstak is a small standalone Nix flake for running commands inside a QEMU MicroVM.
+
+> [!WARNING]
+> **This project is still under active development** and remains highly unstable. Some areas are still rough around the edges, and certain functionality may not yet behave reliably.
 
 Use the default flake app:
 
