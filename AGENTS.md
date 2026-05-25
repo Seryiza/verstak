@@ -7,12 +7,13 @@ Useful commands:
 - `nix flake check`
 - `nix run . -- --help`
 - `nix run . -- codex`
+- `nix run . -- claude`
 - `nix run . -- -p gui codex`
 - `nix run . -- --one-shot ls -la`
 
-The VM mounts the selected project at `/workspace/project` and Codex state at `/home/steve/.codex`.
+The VM mounts the selected project at `/workspace/project`. Codex state lives at `/home/steve/.codex`; Claude state lives at `/home/steve/.claude`.
 
-The default app server port is `4500`. Override launcher behavior with:
+Codex is the only built-in profile with app-server forwarding. The default app server port is `4500`. Override launcher behavior with:
 
 - `VERSTAK_STATE_DIR`
 - `VERSTAK_APP_SERVER_PORT`

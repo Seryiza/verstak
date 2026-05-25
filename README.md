@@ -9,26 +9,34 @@ Verstak is a small standalone Nix flake for running commands inside a QEMU Micro
 > [!WARNING]
 > **This project is still under active development** and remains highly unstable. Some areas are still rough around the edges, and certain functionality may not yet behave reliably.
 
-Use the default flake app:
+Use the public flake app:
 
 ```sh
-nix run . -- [verstak-options] [command] [command-args...]
+nix run github:Seryiza/verstak -- [verstak-options] [command] [command-args...]
 ```
 
 The usual local alias is:
 
 ```sh
-alias verstak='nix run . --'
+alias verstak='nix run github:Seryiza/verstak --'
+```
+
+For a local clone of Verstak, use a `path:` flake ref:
+
+```sh
+alias verstak='nix run path:/absolute/path/to/verstak --'
 ```
 
 Examples:
 
 ```sh
 verstak codex
+verstak claude
 verstak ls -la
 verstak --one-shot ls -la
 verstak -p gui codex --model gpt-5.5
 verstak -C ~/repo codex
+verstak --one-shot claude --version
 verstak -- ls --color=always
 ```
 
@@ -79,6 +87,14 @@ the `codex` profile.
 headless and GUI modes: it runs `codex app-server` in the VM and forwards the
 app-server port to the host.
 
+`claude` adds the Claude Code package, Claude config under
+`/home/steve/.claude`, built-in VM instructions in
+`/home/steve/.claude/CLAUDE.md`, and auth/config seeding from host
+`$HOME/.claude/.credentials.json`, `$HOME/.claude/settings.json`, and
+`$HOME/.claude.json` when those files exist. `verstak claude` automatically
+adds the `claude` profile. Claude runs as a local CLI inside the VM; it does not
+start an app server, use a remote connection, or forward a port.
+
 All profiles use QEMU user networking, 9p/virtiofs shares, and QEMU-only MicroVM
 behavior.
 
@@ -89,7 +105,8 @@ behavior.
 
 ## Connection
 
-For `verstak codex`, the default app-server host URL is:
+Codex is the only built-in profile with app-server and remote mode support. For
+`verstak codex`, the default app-server host URL is:
 
 ```sh
 codex --dangerously-bypass-approvals-and-sandbox --remote ws://127.0.0.1:4500
