@@ -52,6 +52,17 @@ add_profile() {
   profiles+=("$profile")
 }
 
+sync_seed_file() {
+  local source="$1"
+  local target="$2"
+
+  if [ -f "$source" ]; then
+    @coreutils@/bin/install -m 600 "$source" "$target"
+  else
+    @coreutils@/bin/rm -f "$target"
+  fi
+}
+
 looks_like_ref() {
   local ref="$1"
   [[ "$ref" == "." ]] ||
@@ -306,12 +317,7 @@ fi
 
 if has_profile codex; then
   mkdir -p "$state_dir/codex-auth"
-  host_codex_auth="$HOME/.codex/auth.json"
-  if [ -f "$host_codex_auth" ]; then
-    @coreutils@/bin/install -m 600 "$host_codex_auth" "$state_dir/codex-auth/auth.json"
-  else
-    @coreutils@/bin/rm -f "$state_dir/codex-auth/auth.json"
-  fi
+  sync_seed_file "$HOME/.codex/auth.json" "$state_dir/codex-auth/auth.json"
 fi
 
 profiles_json="$(json_array "${profiles[@]}")"
