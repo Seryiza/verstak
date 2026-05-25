@@ -368,7 +368,7 @@ if [ "$use_devshell" = true ]; then
   echo "  Devshell: $devshell_ref"
 fi
 
-if has_profile codex && [ "$mode" = headless ] && [ "${command[0]}" = codex ]; then
+if has_profile codex && [ "$one_shot" = false ] && [ "${command[0]}" = codex ]; then
   echo "Codex App Server:"
   echo "  VM:   starts codex app-server automatically"
   echo "  Host: codex --dangerously-bypass-approvals-and-sandbox --remote ws://$codex_app_server_host_address:$codex_app_server_port"

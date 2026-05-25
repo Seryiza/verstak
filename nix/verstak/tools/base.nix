@@ -5,9 +5,9 @@ let
   codexTools = import ./codex.nix { inherit config lib llmAgents pkgs; };
   isCodexCommand = cfg.codex.enable && cfg.command.argv != [ ]
     && builtins.head cfg.command.argv == "codex";
-  isHeadlessCodexAppServer = (!cfg.gui.enable) && (!cfg.command.oneShot)
-    && isCodexCommand;
-  effectiveCommand = if isHeadlessCodexAppServer then
+  isCodexAppServer = (!cfg.command.oneShot) && isCodexCommand;
+  isHeadlessCodexAppServer = (!cfg.gui.enable) && isCodexAppServer;
+  effectiveCommand = if isCodexAppServer then
     [ "${codexTools.codexAppServer}/bin/codex-app-server" ]
     ++ lib.tail cfg.command.argv
   else
@@ -94,8 +94,8 @@ let
     ''}
   '';
 in {
-  inherit effectiveCommand interactiveShell isHeadlessCodexAppServer runCommand
-    verstakPoweroff;
+  inherit effectiveCommand interactiveShell isCodexAppServer
+    isHeadlessCodexAppServer runCommand verstakPoweroff;
 
   packages = [
     pkgs.bashInteractive

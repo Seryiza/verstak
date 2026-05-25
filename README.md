@@ -73,8 +73,9 @@ seeding from `$HOME/.codex/auth.json`, built-in VM instructions, and the GUI
 skill when the GUI profile is also enabled. `verstak codex` automatically adds
 the `codex` profile.
 
-Headless `verstak codex` preserves the original remote app-server behavior: it
-runs `codex app-server` in the VM and forwards the app-server port to the host.
+`verstak codex` preserves the original remote app-server behavior in both
+headless and GUI modes: it runs `codex app-server` in the VM and forwards the
+app-server port to the host.
 
 All profiles use QEMU user networking, 9p/virtiofs shares, and QEMU-only MicroVM
 behavior.
@@ -86,7 +87,7 @@ behavior.
 
 ## Connection
 
-For headless `verstak codex`, the default app-server host URL is:
+For `verstak codex`, the default app-server host URL is:
 
 ```sh
 codex --dangerously-bypass-approvals-and-sandbox --remote ws://127.0.0.1:4500

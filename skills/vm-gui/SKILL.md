@@ -1,3 +1,8 @@
+---
+name: vm-gui
+description: Use when you need to inspect or control GUI applications inside the Verstak GUI MicroVM.
+---
+
 # VM GUI Skill
 
 Use this skill when you need to inspect or control GUI applications inside the Verstak GUI MicroVM.

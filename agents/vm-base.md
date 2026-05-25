@@ -4,7 +4,7 @@ You are running inside a Verstak MicroVM. The project is mounted at `/workspace/
 
 The default `EDITOR`, `VISUAL`, and `GIT_EDITOR` are `codex-editor`, a non-interactive no-op helper so tools that spawn an editor do not block the agent. Use a real editor directly only when needed.
 
-In headless `verstak codex`, the VM starts `codex app-server` on `ws://0.0.0.0:4500` by default. The host normally connects with:
+When launched with `verstak codex`, the VM starts `codex app-server` on `ws://0.0.0.0:4500` by default. The host normally connects with:
 
 ```sh
 codex --dangerously-bypass-approvals-and-sandbox --remote ws://127.0.0.1:4500
