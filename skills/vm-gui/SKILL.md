@@ -11,4 +11,4 @@ Use this skill when you need to inspect or control GUI applications inside the V
 5. Use `vm-screenshot` to inspect the full display, or `vm-screenshot <query>` to capture one matching window.
 6. Use `vm-move-mouse` and `vm-click` only when keyboard or Sway control is not enough.
 
-Screenshots are saved under `/home/codex/screenshots`.
+Screenshots are saved under `/home/steve/screenshots`.

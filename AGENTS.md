@@ -5,11 +5,12 @@ This repo packages Verstak, a standalone QEMU-only Codex MicroVM. Keep changes f
 Useful commands:
 
 - `nix flake check`
-- `nix run . -- /path/to/project`
-- `nix run .#gui -- /path/to/project`
-- `nix run .#headless -- /path/to/project`
+- `nix run . -- --help`
+- `nix run . -- codex`
+- `nix run . -- -p gui codex`
+- `nix run . -- --one-shot ls -la`
 
-The VM mounts the selected project at `/workspace/project` and Codex state at `/home/codex/.codex`.
+The VM mounts the selected project at `/workspace/project` and Codex state at `/home/steve/.codex`.
 
 The default app server port is `4500`. Override launcher behavior with:
 
