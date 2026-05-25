@@ -40,6 +40,12 @@ in {
       source = "${cfg.stateDir}/codex-auth";
       mountPoint = "/run/verstak-codex-auth";
       readOnly = true;
+    }] ++ lib.optionals cfg.claude.enable [{
+      tag = "claude-auth";
+      proto = "9p";
+      source = "${cfg.stateDir}/claude-auth";
+      mountPoint = "/run/verstak-claude-auth";
+      readOnly = true;
     }] ++ [{
       tag = "ro-store";
       proto = "9p";
@@ -62,7 +68,7 @@ in {
       mac = "02:00:00:00:00:01";
     }];
 
-    forwardPorts = [{
+    forwardPorts = lib.optionals cfg.codex.enable [{
       from = "host";
       host.address = cfg.codex.appServer.hostAddress;
       host.port = cfg.codex.appServer.port;
@@ -90,7 +96,8 @@ in {
   boot.tmp.useTmpfs = true;
   boot.tmp.tmpfsSize = cfg.resources.tmpfsSize;
 
-  networking.firewall.allowedTCPPorts = [ cfg.codex.appServer.port ];
+  networking.firewall.allowedTCPPorts =
+    lib.optionals cfg.codex.enable [ cfg.codex.appServer.port ];
   networking.useDHCP = lib.mkDefault true;
 
   fileSystems.${cfg.projectMount}.options = lib.mkForce [
@@ -140,6 +147,8 @@ in {
     WLR_RENDERER_ALLOW_SOFTWARE = "1";
   };
 
+  environment.localBinInPath = true;
+
   environment.systemPackages = baseTools.packages;
 
   environment.etc."gitconfig".text = ''
@@ -150,5 +159,7 @@ in {
   systemd.tmpfiles.rules = [
     "Z ${cfg.projectMount} - ${cfg.vm.user} ${cfg.internal.vmPrimaryGroup} -"
     "d ${cfg.internal.vmUserHome} 0755 ${cfg.vm.user} ${cfg.internal.vmPrimaryGroup} -"
+    "d ${cfg.internal.vmUserHome}/.local 0755 ${cfg.vm.user} ${cfg.internal.vmPrimaryGroup} -"
+    "d ${cfg.internal.vmUserHome}/.local/bin 0755 ${cfg.vm.user} ${cfg.internal.vmPrimaryGroup} -"
   ];
 }

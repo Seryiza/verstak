@@ -93,6 +93,8 @@ in {
       };
     };
 
+    claude.enable = mkEnableOption "Claude Code CLI integration";
+
     command = {
       argv = mkOption {
         type = types.listOf types.str;

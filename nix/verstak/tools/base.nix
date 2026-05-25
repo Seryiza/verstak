@@ -3,6 +3,9 @@
 let
   cfg = config.verstak;
   codexTools = import ./codex.nix { inherit config lib llmAgents pkgs; };
+  userLocalBin = "${cfg.internal.vmUserHome}/.local/bin";
+  basePath =
+    "${userLocalBin}:/run/wrappers/bin:/run/current-system/sw/bin:${pkgs.coreutils}/bin:${pkgs.bashInteractive}/bin:${pkgs.nix}/bin:$PATH";
   isCodexCommand = cfg.codex.enable && cfg.command.argv != [ ]
     && builtins.head cfg.command.argv == "codex";
   isCodexAppServer = (!cfg.command.oneShot) && isCodexCommand;
@@ -19,7 +22,7 @@ let
     export HOME=${cfg.internal.vmUserHome}
     export USER=${cfg.vm.user}
     export LOGNAME=${cfg.vm.user}
-    export PATH=/run/wrappers/bin:/run/current-system/sw/bin:${pkgs.coreutils}/bin:${pkgs.bashInteractive}/bin:${pkgs.nix}/bin:$PATH
+    export PATH=${basePath}
     ${if cfg.command.useDevshell then ''
       exec ${pkgs.nix}/bin/nix develop ${
         lib.escapeShellArg cfg.command.devshellRef
@@ -61,7 +64,7 @@ let
     export HOME=${cfg.internal.vmUserHome}
     export USER=${cfg.vm.user}
     export LOGNAME=${cfg.vm.user}
-    export PATH=/run/wrappers/bin:/run/current-system/sw/bin:${pkgs.coreutils}/bin:${pkgs.bashInteractive}/bin:${pkgs.nix}/bin:$PATH
+    export PATH=${basePath}
     export PS1='\u@verstak:\w\$ '
     alias poweroff=verstak-poweroff
     alias shutdown=verstak-poweroff
@@ -80,7 +83,7 @@ let
     export HOME=${cfg.internal.vmUserHome}
     export USER=${cfg.vm.user}
     export LOGNAME=${cfg.vm.user}
-    export PATH=/run/wrappers/bin:/run/current-system/sw/bin:${pkgs.coreutils}/bin:${pkgs.bashInteractive}/bin:${pkgs.nix}/bin:$PATH
+    export PATH=${basePath}
     printf '\nVerstak headless shell\n'
     printf 'Project: %s. Power off with: verstak-poweroff\n' ${
       lib.escapeShellArg cfg.projectMount

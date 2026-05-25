@@ -301,6 +301,9 @@ fi
 if [ "${command[0]}" = "codex" ]; then
   add_profile codex
 fi
+if [ "${command[0]}" = "claude" ]; then
+  add_profile claude
+fi
 
 state_dir="${state_dir_input:-$HOME/.local/state/verstak/$project_name}"
 devshell_ref="$(normalize_devshell_ref "$devshell_ref_input")"
@@ -318,6 +321,13 @@ fi
 if has_profile codex; then
   mkdir -p "$state_dir/codex-auth"
   sync_seed_file "$HOME/.codex/auth.json" "$state_dir/codex-auth/auth.json"
+fi
+
+if has_profile claude; then
+  mkdir -p "$state_dir/claude-auth"
+  sync_seed_file "$HOME/.claude/.credentials.json" "$state_dir/claude-auth/.credentials.json"
+  sync_seed_file "$HOME/.claude/settings.json" "$state_dir/claude-auth/settings.json"
+  sync_seed_file "$HOME/.claude.json" "$state_dir/claude-auth/.claude.json"
 fi
 
 profiles_json="$(json_array "${profiles[@]}")"

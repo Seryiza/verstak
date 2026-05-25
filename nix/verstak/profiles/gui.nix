@@ -54,7 +54,7 @@ in {
       input * xkb_layout us
       workspace_layout tabbed
 
-      exec_always ${pkgs.coreutils}/bin/mkdir -p ${cfg.internal.vmUserHome}/screenshots ${cfg.internal.vmUserHome}/.codex
+      exec_always ${pkgs.coreutils}/bin/mkdir -p ${cfg.internal.vmUserHome}/screenshots
       exec ${pkgs.foot}/bin/foot --title verstak-command --hold --working-directory ${cfg.projectMount} ${baseTools.runCommand}/bin/verstak-run-command
 
       bindsym Print exec ${guiTools.vmScreenshot}/bin/vm-screenshot

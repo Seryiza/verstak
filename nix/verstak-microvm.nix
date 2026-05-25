@@ -19,7 +19,7 @@ let
   command = builtins.fromJSON commandJson;
   extraFlakeRefs = builtins.fromJSON extraFlakesJson;
   extraFlakes = map builtins.getFlake extraFlakeRefs;
-  builtinProfileNames = [ "headless" "gui" "codex" ];
+  builtinProfileNames = [ "headless" "gui" "codex" "claude" ];
 
   externalProfileModules = name:
     lib.concatMap (flake:
@@ -61,6 +61,7 @@ let
 
       gui.enable = lib.elem "gui" profiles;
       codex.enable = lib.elem "codex" profiles;
+      claude.enable = lib.elem "claude" profiles;
       codex.appServer = {
         port = codexAppServerPort;
         hostAddress = codexAppServerHostAddress;
@@ -87,6 +88,7 @@ in lib.nixosSystem {
     ./verstak/profiles/headless.nix
     ./verstak/profiles/gui.nix
     ./verstak/profiles/codex.nix
+    ./verstak/profiles/claude.nix
     adapterModule
   ] ++ selectedExternalProfileModules;
 }
