@@ -2,12 +2,18 @@
   <img width="400" height="240" alt="verstak-logo" src="https://github.com/user-attachments/assets/0faeab58-3d4f-43aa-8347-f1c017982951" />
 </p>
 
-# verstak
-
-Verstak is a small standalone Nix flake for running commands inside a QEMU MicroVM.
-
 > [!WARNING]
 > **This project is still under active development** and remains highly unstable. Some areas are still rough around the edges, and certain functionality may not yet behave reliably.
+
+# verstak
+
+verstak is a Nix flake for safe running commands inside small virtual machines.
+
+- ❄️ **NixOS-first**. Use your project-level flake.nix and any additional flakes inside [MicroVMs](https://github.com/microvm-nix/microvm.nix).
+- 🤖 **AI sandbox**. Run your agents with full permissions, either in terminal or with desktop environment.
+- 🐙 **Safe in different ways**. Block internet access, allow only whitelisted MCPs, and attach selected directories to the sandbox.
+
+## Usage
 
 Use the public flake app:
 
