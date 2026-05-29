@@ -223,7 +223,6 @@ in {
   '';
 
   systemd.tmpfiles.rules = [
-    "Z ${cfg.projectMount} - ${cfg.vm.user} ${cfg.internal.vmPrimaryGroup} -"
     "d ${cfg.internal.vmUserHome} 0755 ${cfg.vm.user} ${cfg.internal.vmPrimaryGroup} -"
     "d ${cfg.internal.vmUserHome}/.local 0755 ${cfg.vm.user} ${cfg.internal.vmPrimaryGroup} -"
     "d ${cfg.internal.vmUserHome}/.local/bin 0755 ${cfg.vm.user} ${cfg.internal.vmPrimaryGroup} -"
