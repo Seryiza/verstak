@@ -24,6 +24,13 @@ let
     export USER=${cfg.vm.user}
     export LOGNAME=${cfg.vm.user}
     export PATH=${basePath}
+    export TERM=''${VERSTAK_TERM:-xterm-256color}
+    ${lib.optionalString
+    (runInitialCommand && (!cfg.command.oneShot) && (!isCodexAppServer)) ''
+      printf '$ %s\n' ${
+        lib.escapeShellArg (lib.escapeShellArgs cfg.command.argv)
+      }
+    ''}
     ${if cfg.command.useDevshell then ''
       exec ${pkgs.nix}/bin/nix develop ${
         lib.escapeShellArg cfg.command.devshellRef
@@ -48,16 +55,13 @@ let
   '';
 
   interactiveCommand = lib.optionalString runInitialCommand ''
-    printf '\n+ %s\n' ${
-      lib.escapeShellArg (lib.escapeShellArgs cfg.command.argv)
-    }
+    printf '$ %s\n' ${lib.escapeShellArg (lib.escapeShellArgs cfg.command.argv)}
     set +e
     ${lib.escapeShellArgs cfg.command.argv}
     status=$?
     if [ "$status" -ne 0 ]; then
       printf 'Command exited with status %s\n' "$status"
     fi
-    printf '\nInitial command exited; powering off.\n'
     exit "$status"
   '';
 
@@ -66,6 +70,7 @@ let
     export USER=${cfg.vm.user}
     export LOGNAME=${cfg.vm.user}
     export PATH=${basePath}
+    export TERM=''${VERSTAK_TERM:-xterm-256color}
     export PS1='\u@verstak:\w\$ '
     alias poweroff=verstak-poweroff
     alias shutdown=verstak-poweroff
@@ -73,7 +78,11 @@ let
 
     if [ -z "''${VERSTAK_INTERACTIVE_BOOTSTRAPPED:-}" ]; then
       export VERSTAK_INTERACTIVE_BOOTSTRAPPED=1
-      printf '\nVerstak shell: %s\n' ${lib.escapeShellArg cfg.projectMount}
+      ${
+        lib.optionalString (!runInitialCommand) ''
+          printf '\nVerstak shell: %s\n' ${lib.escapeShellArg cfg.projectMount}
+        ''
+      }
       ${interactiveCommand}
     fi
   '';
@@ -85,10 +94,13 @@ let
     export USER=${cfg.vm.user}
     export LOGNAME=${cfg.vm.user}
     export PATH=${basePath}
-    printf '\nVerstak headless shell\n'
-    printf 'Project: %s. Power off with: verstak-poweroff\n' ${
-      lib.escapeShellArg cfg.projectMount
-    }
+    export TERM=''${VERSTAK_TERM:-xterm-256color}
+    ${lib.optionalString (!runInitialCommand) ''
+      printf '\nVerstak headless shell\n'
+      printf 'Project: %s. Power off with: verstak-poweroff\n' ${
+        lib.escapeShellArg cfg.projectMount
+      }
+    ''}
     ${if cfg.command.useDevshell then ''
       exec ${pkgs.nix}/bin/nix develop ${
         lib.escapeShellArg cfg.command.devshellRef

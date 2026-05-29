@@ -107,11 +107,15 @@ in {
 
     qemu = {
       serialConsole = false;
-      extraArgs = lib.optionals (!cfg.gui.enable) [ "-serial" "chardev:stdio" ];
+      extraArgs = lib.optionals (!cfg.gui.enable) [
+        "-device"
+        "virtio-serial-pci"
+        "-device"
+        "virtconsole,chardev=stdio"
+      ];
     };
 
     kernelParams = lib.optionals (!cfg.gui.enable) [
-      "console=ttyS0"
       "8250.nr_uarts=1"
       "quiet"
       "loglevel=0"

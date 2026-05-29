@@ -13,6 +13,7 @@ let
     HOME = cfg.internal.vmUserHome;
     USER = cfg.vm.user;
     LOGNAME = cfg.vm.user;
+    TERM = "dumb";
     VERSTAK_MODE = cfg.internal.mode;
     VERSTAK_PROJECT_MOUNT = cfg.projectMount;
   } // lib.optionalAttrs cfg.codex.enable {
@@ -27,13 +28,18 @@ let
   claudeAuthDependency =
     lib.optionals cfg.claude.enable [ "verstak-claude-auth.service" ];
   authDependencies = codexAuthDependency ++ claudeAuthDependency;
+  attachedCommand = cfg.command.oneShot
+    || (baseTools.runInitialCommand && (!baseTools.isHeadlessCodexAppServer));
 in {
   boot.consoleLogLevel = lib.mkIf (!cfg.gui.enable) 0;
   systemd.services."serial-getty@ttyS0".enable =
     lib.mkIf (!cfg.gui.enable) false;
+  systemd.services."serial-getty@hvc0".enable =
+    lib.mkIf (!cfg.gui.enable) false;
 
   systemd.services.verstak-shell = lib.mkIf ((!cfg.gui.enable)
-    && (!cfg.command.oneShot) && (!baseTools.isHeadlessCodexAppServer)) {
+    && (!cfg.command.oneShot) && (!baseTools.runInitialCommand)
+    && (!baseTools.isHeadlessCodexAppServer)) {
       description = "Verstak interactive shell";
       after = [ "network-online.target" "systemd-tmpfiles-setup.service" ]
         ++ authDependencies;
@@ -54,7 +60,7 @@ in {
         StandardInput = "tty";
         StandardOutput = "tty";
         StandardError = "tty";
-        TTYPath = "/dev/ttyS0";
+        TTYPath = "/dev/hvc0";
         TTYReset = true;
         TTYVHangup = false;
       } // lib.optionalAttrs (!baseTools.runInitialCommand) {
@@ -64,7 +70,7 @@ in {
     };
 
   systemd.services.verstak-command = lib.mkIf ((!cfg.gui.enable)
-    && (cfg.command.oneShot || baseTools.isHeadlessCodexAppServer)) {
+    && (attachedCommand || baseTools.isHeadlessCodexAppServer)) {
       description = "Verstak command";
       after = [ "network-online.target" "systemd-tmpfiles-setup.service" ]
         ++ authDependencies;
@@ -73,7 +79,7 @@ in {
       wantedBy = [ "multi-user.target" ];
       path = servicePath;
       environment = serviceEnvironment;
-      unitConfig = lib.optionalAttrs cfg.command.oneShot {
+      unitConfig = lib.optionalAttrs attachedCommand {
         SuccessAction = "poweroff";
         FailureAction = "poweroff";
       };
@@ -82,17 +88,15 @@ in {
         Group = cfg.internal.vmPrimaryGroup;
         WorkingDirectory = cfg.projectMount;
         ExecStart = "${baseTools.runCommand}/bin/verstak-run-command";
-        StandardOutput =
-          if cfg.command.oneShot then "tty" else "journal+console";
-        StandardError =
-          if cfg.command.oneShot then "tty" else "journal+console";
+        StandardOutput = if attachedCommand then "tty" else "journal+console";
+        StandardError = if attachedCommand then "tty" else "journal+console";
       } // lib.optionalAttrs baseTools.isHeadlessCodexAppServer {
         Restart = "on-failure";
         RestartSec = "2s";
-      } // lib.optionalAttrs cfg.command.oneShot {
+      } // lib.optionalAttrs attachedCommand {
         StandardInput = "tty";
-        TTYPath = "/dev/ttyS0";
-        TTYReset = true;
+        TTYPath = "/dev/hvc0";
+        TTYReset = false;
         TTYVHangup = true;
       };
     };

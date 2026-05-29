@@ -456,7 +456,8 @@ if [ -d "$runner/share/microvm/virtiofs" ]; then
       --allow-mmap \
       --inode-file-handles=never \
       --translate-uid=squash-guest:0:$(@coreutils@/bin/id -u):65536 \
-      --translate-gid=squash-guest:0:$(@coreutils@/bin/id -g):65536 &
+      --translate-gid=squash-guest:0:$(@coreutils@/bin/id -g):65536 \
+      >> "$state_dir/virtiofsd.log" 2>&1 &
     virtiofsd_pids+=("$!")
 
     for _ in {1..100}; do
