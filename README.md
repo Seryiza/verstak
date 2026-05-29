@@ -75,12 +75,11 @@ The writable Nix store overlay is backed by a MicroVM volume and defaults to 409
 
 ## Profiles
 
-`headless` is the default profile. It starts a non-graphical QEMU MicroVM,
-attaches a Bash session as `steve`, and runs the selected command once in
-`/workspace/project` before leaving the shell open for more commands. Use
-`--one-shot` to run the command as a non-interactive service and power off the
-VM when it exits. From an interactive headless shell, run `verstak-poweroff` to
-shut down the VM.
+`headless` is the default profile. It starts a non-graphical QEMU MicroVM and
+attaches a Bash session as `steve`. If the selected command is not `bash`, it
+runs that command once on the attached TTY and powers off the VM when it exits.
+Use `--one-shot` to run the command as a non-interactive service instead. From
+an interactive headless shell, run `verstak-poweroff` to shut down the VM.
 
 `gui` starts a graphical QEMU MicroVM with Sway, foot, Firefox, screenshot
 helpers, and keyboard and mouse helpers. It opens the selected command in a

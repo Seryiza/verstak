@@ -42,6 +42,10 @@ in {
       wantedBy = [ "multi-user.target" ];
       path = servicePath;
       environment = serviceEnvironment;
+      unitConfig = lib.optionalAttrs baseTools.runInitialCommand {
+        SuccessAction = "poweroff";
+        FailureAction = "poweroff";
+      };
       serviceConfig = {
         User = cfg.vm.user;
         Group = cfg.internal.vmPrimaryGroup;
@@ -53,6 +57,7 @@ in {
         TTYPath = "/dev/ttyS0";
         TTYReset = true;
         TTYVHangup = false;
+      } // lib.optionalAttrs (!baseTools.runInitialCommand) {
         Restart = "always";
         RestartSec = "0";
       };

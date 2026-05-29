@@ -54,11 +54,11 @@ let
     set +e
     ${lib.escapeShellArgs cfg.command.argv}
     status=$?
-    set -e
     if [ "$status" -ne 0 ]; then
       printf 'Command exited with status %s\n' "$status"
     fi
-    printf '\n'
+    printf '\nInitial command exited; powering off.\n'
+    exit "$status"
   '';
 
   interactiveBashRc = pkgs.writeText "verstak-bashrc" ''
@@ -99,7 +99,7 @@ let
   '';
 in {
   inherit effectiveCommand interactiveShell isCodexAppServer
-    isHeadlessCodexAppServer runCommand verstakPoweroff;
+    isHeadlessCodexAppServer runCommand runInitialCommand verstakPoweroff;
 
   packages = [
     pkgs.bashInteractive
