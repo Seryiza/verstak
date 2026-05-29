@@ -95,6 +95,19 @@ in {
 
     claude.enable = mkEnableOption "Claude Code CLI integration";
 
+    network = {
+      mode = mkOption {
+        type = types.enum [ "deny" "internet" ];
+        default = "deny";
+        description = ''
+          Guest network policy. "deny" removes guest network interfaces and
+          forwarded ports. "internet" enables QEMU user networking with an
+          egress firewall that blocks host, private, link-local, multicast,
+          and other non-Internet destination ranges.
+        '';
+      };
+    };
+
     command = {
       argv = mkOption {
         type = types.listOf types.str;

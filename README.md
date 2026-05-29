@@ -36,12 +36,12 @@ alias verstak='nix run path:/absolute/path/to/verstak --'
 Examples:
 
 ```sh
-verstak codex
+verstak --allow-internet codex
 verstak claude
 verstak ls -la
 verstak --one-shot ls -la
-verstak -p gui codex --model gpt-5.5
-verstak -C ~/repo codex
+verstak --allow-internet -p gui codex --model gpt-5.5
+verstak --allow-internet -C ~/repo codex
 verstak --one-shot claude --version
 verstak -- ls --color=always
 ```
@@ -65,6 +65,8 @@ The writable Nix store overlay is backed by a MicroVM volume and defaults to 409
 - `--devshell [REF]`: run the command through `nix develop`. The default ref is `/workspace/project`; use `--devshell=REF` for an explicit ref.
 - `--no-devshell`: disable devshell use.
 - `--one-shot`, `--oneshot`: run the command non-interactively and power off when it exits.
+- `--deny-network`: disable all guest networking. This is the default.
+- `--allow-internet`: enable guest Internet egress while blocking host, private, link-local, multicast, and other non-Internet destination ranges.
 - `--state-dir PATH`: override VM state dir.
 - `--mem MB`: override memory.
 - `--store-overlay MB`: override writable Nix store overlay size.
@@ -89,9 +91,10 @@ seeding from `$HOME/.codex/auth.json`, built-in VM instructions, and the GUI
 skill when the GUI profile is also enabled. `verstak codex` automatically adds
 the `codex` profile.
 
-`verstak codex` preserves the original remote app-server behavior in both
-headless and GUI modes: it runs `codex app-server` in the VM and forwards the
-app-server port to the host.
+`verstak --allow-internet codex` runs `codex app-server` in the VM and forwards
+the app-server port to the host in both headless and GUI modes. Without
+`--allow-internet`, the Codex profile is still installed but guest networking
+and port forwarding remain disabled.
 
 `claude` adds the Claude Code package, Claude config under
 `/home/steve/.claude`, built-in VM instructions in
@@ -101,8 +104,20 @@ app-server port to the host.
 adds the `claude` profile. Claude runs as a local CLI inside the VM; it does not
 start an app server, use a remote connection, or forward a port.
 
-All profiles use QEMU user networking, 9p/virtiofs shares, and QEMU-only MicroVM
-behavior.
+All profiles use 9p/virtiofs shares and QEMU-only MicroVM behavior. Guest
+networking is disabled by default; pass `--allow-internet` when a command needs
+Internet access.
+
+## Network policy
+
+By default, and with `--deny-network`, Verstak removes guest network interfaces
+and forwarded ports from the MicroVM.
+
+With `--allow-internet`, Verstak enables QEMU user networking and an nftables
+egress policy that permits Internet-bound TCP, UDP, and ICMP while dropping
+non-Internet destinations such as `10.0.0.0/8`, `172.16.0.0/12`, `192.0.0.0/8`,
+loopback, link-local, multicast, CGNAT, and related reserved ranges. Static
+public DNS resolvers are used so QEMU's local DNS proxy is not required.
 
 ## How I use it
 
@@ -111,8 +126,9 @@ behavior.
 
 ## Connection
 
-Codex is the only built-in profile with app-server and remote mode support. For
-`verstak codex`, the default app-server host URL is:
+Codex is the only built-in profile with app-server and remote mode support. Since
+networking is denied by default, use `verstak --allow-internet codex` for the
+forwarded app-server. The default app-server host URL is:
 
 ```sh
 codex --dangerously-bypass-approvals-and-sandbox --remote ws://127.0.0.1:4500
@@ -129,6 +145,7 @@ The launcher prints the exact command before starting the VM.
 - `VERSTAK_STORE_OVERLAY_MB`: writable Nix store overlay volume size in mebibytes. Defaults to `4096`.
 - `VERSTAK_TMPFS_SIZE`: executable `/tmp` tmpfs size. Accepts values such as `1024M`, `1G`, or `50%`. Defaults to `1G`.
 - `VERSTAK_MODE`: default mode when neither `gui` nor `headless` is selected. Accepts `gui` or `headless`.
+- `VERSTAK_NETWORK_MODE`: guest network policy. Accepts `deny` or `internet`; defaults to `deny`.
 
 ## VM Helpers
 

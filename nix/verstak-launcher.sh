@@ -13,6 +13,8 @@ Options:
   --devshell [REF]         Run command through nix develop; default ref is mounted directory
   --no-devshell            Disable devshell use
   --one-shot, --oneshot    Run command non-interactively and power off when it exits
+  --deny-network           Disable all guest networking (default)
+  --allow-internet         Allow guest Internet egress while blocking host/LAN ranges
   --state-dir PATH         Override VM state dir
   --mem MB                 Override memory
   --store-overlay MB       Override writable Nix store overlay size
@@ -136,6 +138,7 @@ codex_app_server_host_address="${VERSTAK_APP_SERVER_HOST:-127.0.0.1}"
 use_devshell=false
 devshell_ref_input=""
 one_shot="${VERSTAK_ONE_SHOT:-false}"
+network_mode="${VERSTAK_NETWORK_MODE:-deny}"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -191,6 +194,14 @@ while [ "$#" -gt 0 ]; do
       ;;
     --one-shot|--oneshot)
       one_shot=true
+      shift
+      ;;
+    --deny-network)
+      network_mode=deny
+      shift
+      ;;
+    --allow-internet)
+      network_mode=internet
       shift
       ;;
     --state-dir)
@@ -283,6 +294,19 @@ case "$one_shot" in
     die "VERSTAK_ONE_SHOT must be true or false"
     ;;
 esac
+case "$network_mode" in
+  deny|internet)
+    ;;
+  none|off|false|0)
+    network_mode=deny
+    ;;
+  allow-internet|internet-only|true|1)
+    network_mode=internet
+    ;;
+  *)
+    die "VERSTAK_NETWORK_MODE must be 'deny' or 'internet'"
+    ;;
+esac
 
 if ! has_profile gui && ! has_profile headless; then
   case "${VERSTAK_MODE:-headless}" in
@@ -351,6 +375,7 @@ runner="$(@nix@/bin/nix build --no-link --print-out-paths \
   --argstr devshellRef "$devshell_ref" \
   --arg oneShot "$one_shot" \
   --arg memMb "$mem_mb" \
+  --argstr networkMode "$network_mode" \
   --arg storeOverlaySizeMb "$store_overlay_size_mb" \
   --argstr tmpfsSize "$tmpfs_size" \
   --arg codexAppServerPort "$codex_app_server_port" \
@@ -380,11 +405,12 @@ echo "  Session:  $([ "$one_shot" = true ] && printf '%s' one-shot || printf '%s
 echo "  Memory:   $mem_mb MB"
 echo "  /tmp:     $tmpfs_size tmpfs"
 echo "  Nix store overlay: $store_overlay_size_mb MiB"
+echo "  Network:  $network_mode"
 if [ "$use_devshell" = true ]; then
   echo "  Devshell: $devshell_ref"
 fi
 
-if has_profile codex && [ "$one_shot" = false ] && [ "${command[0]}" = codex ]; then
+if has_profile codex && [ "$one_shot" = false ] && [ "${command[0]}" = codex ] && [ "$network_mode" = internet ]; then
   echo "Codex App Server:"
   echo "  VM:   starts codex app-server automatically"
   echo "  Host: codex --dangerously-bypass-approvals-and-sandbox --remote ws://$codex_app_server_host_address:$codex_app_server_port"

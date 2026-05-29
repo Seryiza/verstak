@@ -12,8 +12,9 @@ let
     non-interactive no-op helper so tools that spawn an editor do not block
     the agent. Use a real editor directly only when needed.
 
-    When launched with verstak codex, the VM starts codex app-server on
-    ${codexTools.codexAppServerListen} by default. The host normally
+    When launched with verstak --allow-internet codex, the VM starts
+    codex app-server on ${codexTools.codexAppServerListen} and forwards it to
+    the host. The host normally
     connects with:
 
         codex --dangerously-bypass-approvals-and-sandbox --remote ${codexTools.codexAppServerRemote}

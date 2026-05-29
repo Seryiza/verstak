@@ -8,7 +8,8 @@ let
     "${userLocalBin}:/run/wrappers/bin:/run/current-system/sw/bin:${pkgs.coreutils}/bin:${pkgs.bashInteractive}/bin:${pkgs.nix}/bin:$PATH";
   isCodexCommand = cfg.codex.enable && cfg.command.argv != [ ]
     && builtins.head cfg.command.argv == "codex";
-  isCodexAppServer = (!cfg.command.oneShot) && isCodexCommand;
+  isCodexAppServer = (cfg.network.mode == "internet") && (!cfg.command.oneShot)
+    && isCodexCommand;
   isHeadlessCodexAppServer = (!cfg.gui.enable) && isCodexAppServer;
   effectiveCommand = if isCodexAppServer then
     [ "${codexTools.codexAppServer}/bin/codex-app-server" ]

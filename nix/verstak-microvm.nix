@@ -6,9 +6,9 @@
 , profilesJson ? ''["headless"]'', commandJson ? ''["bash"]''
 , extraFlakesJson ? "[]", useDevshell ? false, devshellRef ? projectMount
 , oneShot ? false, memMb ? 8192, codexAppServerPort ? 4500
-, codexAppServerHostAddress ? "127.0.0.1", storeOverlaySizeMb ? 4096
-, tmpfsSize ? "1G", agentBasePath ? ../agents/vm-base.md
-, agentGuiPath ? ../agents/vm-gui.md
+, codexAppServerHostAddress ? "127.0.0.1", networkMode ? "deny"
+, storeOverlaySizeMb ? 4096, tmpfsSize ? "1G"
+, agentBasePath ? ../agents/vm-base.md, agentGuiPath ? ../agents/vm-gui.md
 , agentHeadlessPath ? ../agents/vm-headless.md
 , guiSkillPath ? ../skills/vm-gui/SKILL.md, }:
 
@@ -66,6 +66,8 @@ let
         port = codexAppServerPort;
         hostAddress = codexAppServerHostAddress;
       };
+
+      network.mode = networkMode;
 
       resources = {
         memoryMb = memMb;
