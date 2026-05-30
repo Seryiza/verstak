@@ -97,13 +97,43 @@ in {
 
     network = {
       mode = mkOption {
-        type = types.enum [ "deny" "internet" ];
+        type = types.enum [ "deny" "allowlist" "internet" ];
         default = "deny";
         description = ''
           Guest network policy. "deny" removes guest network interfaces and
-          forwarded ports. "internet" enables QEMU user networking with an
-          egress firewall that blocks host, private, link-local, multicast,
-          and other non-Internet destination ranges.
+          forwarded ports. "allowlist" enables QEMU user networking with
+          egress restricted to configured domain allowlists. "internet"
+          enables QEMU user networking with an egress firewall that blocks
+          host, private, link-local, multicast, and other non-Internet
+          destination ranges.
+        '';
+      };
+
+      allowedDomains = mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+        description = ''
+          Domain suffixes allowed when network.mode is "allowlist". Profiles
+          can extend this list; DNS answers for these domains populate nftables
+          sets used by the egress firewall.
+        '';
+      };
+
+      allowedTCPPorts = mkOption {
+        type = types.listOf types.port;
+        default = [ 80 443 ];
+        description = ''
+          TCP destination ports allowed to domain-resolved addresses when
+          network.mode is "allowlist".
+        '';
+      };
+
+      dnsServers = mkOption {
+        type = types.listOf types.str;
+        default = [ "1.1.1.1" "1.0.0.1" ];
+        description = ''
+          Upstream DNS servers used by unrestricted Internet mode and by the
+          local resolver that maintains allowlist nftables sets.
         '';
       };
     };

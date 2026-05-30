@@ -13,7 +13,7 @@ Useful commands:
 
 The VM mounts the selected project at `/workspace/project`. Codex state lives at `/home/steve/.codex`; Claude state lives at `/home/steve/.claude`.
 
-Networking is denied by default. Use `--allow-internet` for Internet egress; it keeps host/local/private ranges blocked. Codex is the only built-in profile with app-server forwarding, and forwarding is only enabled with `--allow-internet`. The default app server port is `4500`. Override launcher behavior with:
+Networking is denied by default. `verstak codex` defaults to allowlisted OpenAI/Codex domain egress; use `--deny-network` to disable that or `--allow-internet` for general Internet egress. All network modes keep host/local/private ranges blocked. Codex is the only built-in profile with app-server forwarding, and forwarding is only enabled with `--allow-internet`. The default app server port is `4500`. Override launcher behavior with:
 
 - `VERSTAK_STATE_DIR`
 - `VERSTAK_APP_SERVER_PORT`

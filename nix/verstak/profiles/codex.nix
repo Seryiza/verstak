@@ -4,6 +4,8 @@ let
   cfg = config.verstak;
   agentInstructions = import ../lib/agent-instructions.nix { inherit config; };
   codexTools = import ../tools/codex.nix { inherit config lib llmAgents pkgs; };
+  codexNetworkDomains =
+    [ "openai.com" "chatgpt.com" "oaistatic.com" "oaiusercontent.com" ];
   agentText = agentInstructions.mkAgentText ''
 
     Codex home is ${codexTools.codexConfigHome}.
@@ -12,10 +14,12 @@ let
     non-interactive no-op helper so tools that spawn an editor do not block
     the agent. Use a real editor directly only when needed.
 
-    When launched with verstak --allow-internet codex, the VM starts
-    codex app-server on ${codexTools.codexAppServerListen} and forwards it to
-    the host. The host normally
-    connects with:
+    When launched as verstak codex without an explicit network option, the VM
+    allows egress only to OpenAI/Codex domains contributed by this profile.
+
+    When launched with verstak --allow-internet codex, the VM starts codex
+    app-server on ${codexTools.codexAppServerListen} and forwards it to the
+    host. The host normally connects with:
 
         codex --dangerously-bypass-approvals-and-sandbox --remote ${codexTools.codexAppServerRemote}
 
@@ -27,6 +31,8 @@ let
 in {
   config = lib.mkIf cfg.codex.enable {
     environment.systemPackages = codexTools.packages;
+
+    verstak.network.allowedDomains = lib.mkAfter codexNetworkDomains;
 
     environment.sessionVariables = {
       CODEX_HOME = codexTools.codexConfigHome;

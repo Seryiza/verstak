@@ -91,7 +91,8 @@ PING google.com (142.251.223.110) 56(84) bytes of data.
 ### codex: interactive apps
 
 > [!NOTE]
-> verstak autodetects some commands and applies to them special logic. In case of `codex`, verstak provides your host `~/.codex/auth.json` credentials for automatic log-in.
+> verstak autodetects some commands and applies to them special logic. In case of `codex`, verstak adds the codex profile, seeds your host `~/.codex/auth.json` credentials, and allows network access for OpenAI/Codex domains.
+
 
 ```sh
 verstak codex
@@ -124,7 +125,7 @@ The writable Nix store overlay is backed by a MicroVM volume and defaults to 409
 - `--devshell [REF]`: run the command through `nix develop`. The default ref is `/workspace/project`; use `--devshell=REF` for an explicit ref.
 - `--no-devshell`: disable devshell use.
 - `--one-shot`, `--oneshot`: run the command non-interactively and power off when it exits.
-- `--deny-network`: disable all guest networking. This is the default.
+- `--deny-network`: disable all guest networking. This is the default, except for auto-detected `verstak codex`.
 - `--allow-internet`: enable guest Internet egress while blocking host, private, link-local, multicast, and other non-Internet destination ranges.
 - `--state-dir PATH`: override VM state dir.
 - `--mem MB`: override memory.
@@ -145,14 +146,16 @@ helpers, and keyboard and mouse helpers. It opens the selected command in a
 foot terminal in `/workspace/project`.
 
 `codex` adds the Codex package, Codex config under `/home/steve/.codex`, auth
-seeding from `$HOME/.codex/auth.json`, built-in VM instructions, and the GUI
-skill when the GUI profile is also enabled. `verstak codex` automatically adds
-the `codex` profile.
+seeding from `$HOME/.codex/auth.json`, built-in VM instructions, OpenAI/Codex
+network allowlist domains, and the GUI skill when the GUI profile is also
+enabled. `verstak codex` automatically adds the `codex` profile and, unless a
+network option/environment override was provided, uses allowlisted networking.
 
 `verstak --allow-internet codex` runs `codex app-server` in the VM and forwards
 the app-server port to the host in both headless and GUI modes. Without
-`--allow-internet`, the Codex profile is still installed but guest networking
-and port forwarding remain disabled.
+`--allow-internet`, `verstak codex` runs the local Codex CLI with only the
+OpenAI/Codex domain allowlist and no app-server port forwarding. Pass
+`--deny-network` to disable networking entirely.
 
 `claude` adds the Claude Code package, Claude config under
 `/home/steve/.claude`, built-in VM instructions in
@@ -164,12 +167,20 @@ start an app server, use a remote connection, or forward a port.
 
 All profiles use 9p/virtiofs shares and QEMU-only MicroVM behavior. Guest
 networking is disabled by default; pass `--allow-internet` when a command needs
-Internet access.
+general Internet access.
 
 ## Network policy
 
 By default, and with `--deny-network`, Verstak removes guest network interfaces
 and forwarded ports from the MicroVM.
+
+With allowlisted networking, Verstak enables QEMU user networking, runs a local
+`dnsmasq` resolver, and lets profiles/modules contribute
+`verstak.network.allowedDomains`. DNS answers for those domains populate nftables
+sets; only configured TCP ports (80 and 443 by default) to those resolved
+addresses are allowed. Host, private, link-local, multicast, CGNAT, and other
+reserved ranges remain blocked. `verstak codex` uses this mode by default for
+OpenAI/Codex domains.
 
 With `--allow-internet`, Verstak enables QEMU user networking and an nftables
 egress policy that permits Internet-bound TCP, UDP, and ICMP while dropping
@@ -204,7 +215,7 @@ The launcher prints the exact command before starting the VM.
 - `VERSTAK_TMPFS_SIZE`: executable `/tmp` tmpfs size. Accepts values such as `1024M`, `1G`, or `50%`. Defaults to `1G`.
 - `VERSTAK_TTY_ROWS`, `VERSTAK_TTY_COLUMNS`: override the headless terminal size. Defaults to the host terminal size when available, otherwise `40x120`.
 - `VERSTAK_MODE`: default mode when neither `gui` nor `headless` is selected. Accepts `gui` or `headless`.
-- `VERSTAK_NETWORK_MODE`: guest network policy. Accepts `deny` or `internet`; defaults to `deny`.
+- `VERSTAK_NETWORK_MODE`: guest network policy. Accepts `deny`, `allowlist`, or `internet`; defaults to `deny` (`verstak codex` defaults to `allowlist`).
 
 ## VM Helpers
 

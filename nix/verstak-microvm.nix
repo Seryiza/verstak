@@ -91,6 +91,7 @@ in lib.nixosSystem {
     microvm.nixosModules.microvm
     ./verstak/options.nix
     ./verstak/core.nix
+    ./verstak/modules/networking.nix
     ./verstak/modules/headless-runner.nix
     ./verstak/profiles/headless.nix
     ./verstak/profiles/gui.nix

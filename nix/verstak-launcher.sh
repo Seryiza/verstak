@@ -13,7 +13,7 @@ Options:
   --devshell [REF]         Run command through nix develop; default ref is mounted directory
   --no-devshell            Disable devshell use
   --one-shot, --oneshot    Run command non-interactively and power off when it exits
-  --deny-network           Disable all guest networking (default)
+  --deny-network           Disable all guest networking (default except codex)
   --allow-internet         Allow guest Internet egress while blocking host/LAN ranges
   --state-dir PATH         Override VM state dir
   --mem MB                 Override memory
@@ -141,6 +141,10 @@ use_devshell=false
 devshell_ref_input=""
 one_shot="${VERSTAK_ONE_SHOT:-false}"
 network_mode="${VERSTAK_NETWORK_MODE:-deny}"
+network_mode_explicit=false
+if [ -n "${VERSTAK_NETWORK_MODE+x}" ]; then
+  network_mode_explicit=true
+fi
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -200,10 +204,12 @@ while [ "$#" -gt 0 ]; do
       ;;
     --deny-network)
       network_mode=deny
+      network_mode_explicit=true
       shift
       ;;
     --allow-internet)
       network_mode=internet
+      network_mode_explicit=true
       shift
       ;;
     --state-dir)
@@ -323,16 +329,19 @@ case "$one_shot" in
     ;;
 esac
 case "$network_mode" in
-  deny|internet)
+  deny|allowlist|internet)
     ;;
   none|off|false|0)
     network_mode=deny
+    ;;
+  codex|codex-only|openai|openai-codex)
+    network_mode=allowlist
     ;;
   allow-internet|internet-only|true|1)
     network_mode=internet
     ;;
   *)
-    die "VERSTAK_NETWORK_MODE must be 'deny' or 'internet'"
+    die "VERSTAK_NETWORK_MODE must be 'deny', 'allowlist', or 'internet'"
     ;;
 esac
 
@@ -352,6 +361,9 @@ fi
 
 if [ "${command[0]}" = "codex" ]; then
   add_profile codex
+  if [ "$network_mode_explicit" = false ]; then
+    network_mode=allowlist
+  fi
 fi
 if [ "${command[0]}" = "claude" ]; then
   add_profile claude
