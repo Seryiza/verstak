@@ -72,7 +72,10 @@
           replacements = {
             inherit (pkgs)
               coreutils
+              dnsutils
+              iproute2
               jq
+              nftables
               nix
               virtiofsd
               ;
@@ -237,6 +240,27 @@
             ];
             commandJson = builtins.toJSON [ "codex" ];
             networkMode = "internet";
+          };
+
+          eval-codex-guest-enforcement = evalCheck "codex-guest-enforcement" {
+            profilesJson = builtins.toJSON [
+              "headless"
+              "codex"
+            ];
+            commandJson = builtins.toJSON [ "codex" ];
+            networkMode = "allowlist";
+            networkEnforcement = "guest";
+          };
+
+          eval-codex-host-guest-firewall = evalCheck "codex-host-guest-firewall" {
+            profilesJson = builtins.toJSON [
+              "headless"
+              "codex"
+            ];
+            commandJson = builtins.toJSON [ "codex" ];
+            networkMode = "allowlist";
+            networkEnforcement = "host";
+            guestFirewall = true;
           };
 
           eval-claude = evalCheck "claude" {

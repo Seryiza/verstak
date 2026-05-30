@@ -88,6 +88,17 @@ in
         default = null;
         description = "Guest home directory. Defaults to /home/<user>.";
       };
+
+      passwordlessSudo = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Whether the guest user can run sudo without a password. This is
+          convenient for agent workflows. It does not weaken host-enforced
+          network policy, but it makes guest-enforced firewall policy
+          best-effort because guest root can alter nftables/dnsmasq.
+        '';
+      };
     };
 
     gui.enable = mkEnableOption "the Sway GUI mode";
@@ -181,8 +192,33 @@ in
           "1.0.0.1"
         ];
         description = ''
-          Upstream DNS servers used by unrestricted Internet mode and by the
-          local resolver that maintains allowlist nftables sets.
+          Upstream DNS servers used by unrestricted Internet mode, host-side
+          allowlist resolution, and guest-side allowlist DNS when legacy guest
+          enforcement is selected.
+        '';
+      };
+
+      enforcement = mkOption {
+        type = types.enum [
+          "host"
+          "guest"
+        ];
+        default = "host";
+        description = ''
+          Where network egress policy is enforced. "host" runs the VM process
+          inside a launcher-created host network namespace with host-controlled
+          nftables rules. "guest" keeps the legacy in-guest nftables/dnsmasq
+          policy, which is best-effort because guest root can change it.
+        '';
+      };
+
+      guestFirewall.enable = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Enable the legacy guest-side egress nftables/dnsmasq policy as
+          defense-in-depth. This is automatically used when
+          verstak.network.enforcement is "guest".
         '';
       };
     };

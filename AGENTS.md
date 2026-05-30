@@ -13,7 +13,7 @@ Useful commands:
 
 The VM mounts the selected project at `/workspace/project`. Codex state lives at `/home/steve/.codex`; Claude state lives at `/home/steve/.claude`.
 
-Networking is denied by default. `verstak codex` defaults to allowlisted OpenAI/Codex domain egress; use `--deny-network` to disable that or `--allow-internet` for general Internet egress. All network modes keep host/local/private ranges blocked. Codex is the only built-in profile with app-server forwarding, and forwarding is only enabled with `--allow-internet`. The default app server port is `4500`. Override launcher behavior with:
+Networking is denied by default. `verstak codex` defaults to allowlisted OpenAI/Codex domain egress; use `--deny-network` to disable that or `--allow-internet` for general Internet egress. Network-enabled modes default to host-side netns+nftables enforcement and require `sudo` for namespace/firewall setup; use `--network-enforcement=guest` only for legacy best-effort guest firewall behavior. All network modes keep host/local/private ranges blocked. Codex is the only built-in profile with app-server forwarding, and forwarding is only enabled with `--allow-internet`. The default app server port is `4500`. Override launcher behavior with:
 
 - `VERSTAK_STATE_DIR`
 - `VERSTAK_APP_SERVER_PORT`
@@ -23,5 +23,7 @@ Networking is denied by default. `verstak codex` defaults to allowlisted OpenAI/
 - `VERSTAK_TMPFS_SIZE`
 - `VERSTAK_MODE`
 - `VERSTAK_NETWORK_MODE`
+- `VERSTAK_NETWORK_ENFORCEMENT`
+- `VERSTAK_GUEST_FIREWALL`
 
 Inside the VM, Codex runs with full permissions inside the MicroVM boundary: no Codex sandbox and no approval prompts. Treat the MicroVM as the security boundary and review generated changes before committing them.

@@ -127,6 +127,8 @@ The writable Nix store overlay is backed by a MicroVM volume and defaults to 409
 - `--one-shot`, `--oneshot`: run the command non-interactively and power off when it exits.
 - `--deny-network`: disable all guest networking. This is the default, except for auto-detected `verstak codex`.
 - `--allow-internet`: enable guest Internet egress while blocking host, private, link-local, multicast, and other non-Internet destination ranges.
+- `--network-enforcement MODE`: enforce network policy with host netns/nftables (`host`, default) or legacy guest firewall (`guest`).
+- `--guest-network-firewall`: also enable legacy in-guest egress firewall as defense-in-depth.
 - `--state-dir PATH`: override VM state dir.
 - `--mem MB`: override memory.
 - `--store-overlay MB`: override writable Nix store overlay size.
@@ -174,19 +176,38 @@ general Internet access.
 By default, and with `--deny-network`, Verstak removes guest network interfaces
 and forwarded ports from the MicroVM.
 
-With allowlisted networking, Verstak enables QEMU user networking, runs a local
-`dnsmasq` resolver, and lets profiles/modules contribute
-`verstak.network.allowedDomains`. DNS answers for those domains populate nftables
-sets; only configured TCP ports (80 and 443 by default) to those resolved
-addresses are allowed. Host, private, link-local, multicast, CGNAT, and other
-reserved ranges remain blocked. `verstak codex` uses this mode by default for
-OpenAI/Codex domains.
+For network-enabled modes, Verstak defaults to host-side enforcement. The
+launcher creates a per-state-dir network namespace, veth pair, host NAT rules,
+and an nftables egress policy inside the namespace, then runs the MicroVM runner
+inside that namespace as the invoking user. This setup requires `sudo` for
+namespace/firewall setup and cleanup, but the guest cannot change the host-side
+network policy even if the agent gains guest root.
 
-With `--allow-internet`, Verstak enables QEMU user networking and an nftables
-egress policy that permits Internet-bound TCP, UDP, and ICMP while dropping
-non-Internet destinations such as `10.0.0.0/8`, `172.16.0.0/12`, `192.0.0.0/8`,
-loopback, link-local, multicast, CGNAT, and related reserved ranges. Static
-public DNS resolvers are used so QEMU's local DNS proxy is not required.
+With allowlisted networking, profiles/modules contribute
+`verstak.network.allowedDomains`. Host enforcement pre-resolves known allowed
+profile domains into namespace nftables sets and permits only configured TCP
+ports (80 and 443 by default) to those addresses. Host, private, link-local,
+multicast, CGNAT, and other reserved ranges remain blocked. `verstak codex` uses
+this mode by default for OpenAI/Codex domains.
+
+> [!NOTE]
+> Domain allowlists based on DNS-to-IP sets are not perfect: CDNs can share IPs,
+> DNS answers change, and currently the host allowlist pre-resolves common
+> profile domain names rather than validating TLS SNI/HTTP Host. Host-side
+> enforcement is still much stronger than guest-only firewalling, but a future
+> proxy-based mode would provide stricter domain semantics.
+
+With `--allow-internet`, Verstak enables QEMU user networking in the host
+network namespace and an nftables egress policy that permits Internet-bound TCP,
+UDP, and ICMP while dropping non-Internet destinations such as `10.0.0.0/8`,
+`172.16.0.0/12`, `192.0.0.0/8`, loopback, link-local, multicast, CGNAT, and
+related reserved ranges.
+
+Use `--network-enforcement=guest` only for legacy/debugging behavior. In that
+mode, Verstak enables the old in-guest `dnsmasq`/nftables policy; it is
+best-effort because guest root can alter it. With host enforcement, pass
+`--guest-network-firewall` if you also want those guest rules as
+defense-in-depth.
 
 ## How I use it
 
@@ -216,6 +237,8 @@ The launcher prints the exact command before starting the VM.
 - `VERSTAK_TTY_ROWS`, `VERSTAK_TTY_COLUMNS`: override the headless terminal size. Defaults to the host terminal size when available, otherwise `40x120`.
 - `VERSTAK_MODE`: default mode when neither `gui` nor `headless` is selected. Accepts `gui` or `headless`.
 - `VERSTAK_NETWORK_MODE`: guest network policy. Accepts `deny`, `allowlist`, or `internet`; defaults to `deny` (`verstak codex` defaults to `allowlist`).
+- `VERSTAK_NETWORK_ENFORCEMENT`: where to enforce network policy. Accepts `host` (default) or `guest`.
+- `VERSTAK_GUEST_FIREWALL`: set to `true` to enable legacy in-guest firewall rules as defense-in-depth with host enforcement.
 
 ## VM Helpers
 

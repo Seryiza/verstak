@@ -25,6 +25,8 @@
   codexAppServerPort ? 4500,
   codexAppServerHostAddress ? "127.0.0.1",
   networkMode ? "deny",
+  networkEnforcement ? "host",
+  guestFirewall ? false,
   storeOverlaySizeMb ? 4096,
   tmpfsSize ? "1G",
   agentBasePath ? ../agents/vm-base.md,
@@ -113,7 +115,11 @@ let
         hostAddress = codexAppServerHostAddress;
       };
 
-      network.mode = networkMode;
+      network = {
+        mode = networkMode;
+        enforcement = networkEnforcement;
+        guestFirewall.enable = guestFirewall;
+      };
 
       terminal = {
         rows = ttyRows;

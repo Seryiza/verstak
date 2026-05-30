@@ -5,6 +5,8 @@ let
   networkEnabled = cfg.network.mode != "deny";
   internetNetwork = cfg.network.mode == "internet";
   allowlistNetwork = cfg.network.mode == "allowlist";
+  hostEnforcement = cfg.network.enforcement == "host";
+  guestPolicyEnabled = networkEnabled && (!hostEnforcement || cfg.network.guestFirewall.enable);
   nftSet = ranges: "{ ${lib.concatStringsSep ", " ranges} }";
   allowedDomains = lib.unique cfg.network.allowedDomains;
   allowedTcpPorts = lib.unique cfg.network.allowedTCPPorts;
@@ -66,6 +68,22 @@ in
     }
   ];
 
+  warnings =
+    lib.optionals (networkEnabled && hostEnforcement && cfg.network.guestFirewall.enable) [
+      ''
+        verstak.network.guestFirewall.enable is enabled with host enforcement.
+        Guest firewall rules are defense-in-depth only; host netns nftables is
+        the authoritative network policy.
+      ''
+    ]
+    ++ lib.optionals (networkEnabled && !hostEnforcement) [
+      ''
+        verstak.network.enforcement = "guest" is best-effort only because guest
+        root can alter guest nftables/dnsmasq. Use "host" for stronger network
+        isolation.
+      ''
+    ];
+
   microvm = {
     interfaces = lib.mkForce (
       lib.optionals networkEnabled [
@@ -93,7 +111,7 @@ in
     useDHCP = lib.mkDefault networkEnabled;
     enableIPv6 = lib.mkIf networkEnabled false;
     nameservers = lib.mkIf networkEnabled (
-      if allowlistNetwork then [ "127.0.0.1" ] else cfg.network.dnsServers
+      if guestPolicyEnabled && allowlistNetwork then [ "127.0.0.1" ] else cfg.network.dnsServers
     );
     dhcpcd.extraConfig = lib.mkIf networkEnabled "nohook resolv.conf";
 
@@ -102,7 +120,7 @@ in
       allowedTCPPorts = lib.optionals (internetNetwork && cfg.codex.enable) [ cfg.codex.appServer.port ];
     };
 
-    nftables = lib.mkIf networkEnabled {
+    nftables = lib.mkIf guestPolicyEnabled {
       enable = true;
       tables.verstak_egress = {
         family = "inet";
@@ -153,7 +171,7 @@ in
     };
   };
 
-  services.dnsmasq = lib.mkIf allowlistNetwork {
+  services.dnsmasq = lib.mkIf (guestPolicyEnabled && allowlistNetwork) {
     enable = true;
     settings = {
       "bind-interfaces" = true;
@@ -165,7 +183,7 @@ in
     };
   };
 
-  systemd.services.dnsmasq = lib.mkIf allowlistNetwork {
+  systemd.services.dnsmasq = lib.mkIf (guestPolicyEnabled && allowlistNetwork) {
     after = [ "nftables.service" ];
     wants = [ "nftables.service" ];
     serviceConfig = {
