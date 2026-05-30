@@ -60,6 +60,32 @@
 
       devTools = pkgs: import ./nix/dev-tools.nix { inherit pkgs; };
 
+      mkLauncher =
+        system:
+        let
+          pkgs = mkPkgs system;
+        in
+        pkgs.replaceVarsWith {
+          name = "verstak";
+          src = ./nix/verstak-launcher.sh;
+          isExecutable = true;
+          replacements = {
+            inherit (pkgs)
+              coreutils
+              jq
+              nix
+              virtiofsd
+              ;
+            utilLinux = pkgs.util-linux;
+            runnerConfig = ./nix/verstak-microvm.nix;
+            nixpkgsFlake = nixpkgs;
+            llmAgentsFlake = llm-agents;
+            microvmFlake = microvm;
+            inherit system;
+          }
+          // docs;
+        };
+
       treefmtEval = forAllSystems (system: treefmt-nix.lib.evalModule (mkPkgs system) ./treefmt.nix);
 
       mkProfileEvalCheck =
@@ -91,6 +117,35 @@
         '';
     in
     {
+      lib = {
+        inherit mkVerstakSystem;
+      };
+
+      nixosModules.default =
+        { ... }:
+        {
+          _module.args = {
+            inherit microvm;
+            llmAgents = llm-agents;
+          };
+          imports = [
+            microvm.nixosModules.microvm
+            ./nix/verstak/options.nix
+            ./nix/verstak/core.nix
+            ./nix/verstak/modules/networking.nix
+            ./nix/verstak/modules/headless-runner.nix
+            ./nix/verstak/profiles/headless.nix
+            ./nix/verstak/profiles/gui.nix
+            ./nix/verstak/profiles/codex.nix
+            ./nix/verstak/profiles/claude.nix
+          ];
+        };
+
+      packages = forAllSystems (system: {
+        default = mkLauncher system;
+        verstak = mkLauncher system;
+      });
+
       devShells = forAllSystems (
         system:
         let
@@ -194,39 +249,13 @@
         }
       );
 
-      apps = forAllSystems (
-        system:
-        let
-          pkgs = mkPkgs system;
-          launcher = pkgs.replaceVarsWith {
-            name = "verstak";
-            src = ./nix/verstak-launcher.sh;
-            isExecutable = true;
-            replacements = {
-              inherit (pkgs)
-                coreutils
-                jq
-                nix
-                virtiofsd
-                ;
-              utilLinux = pkgs.util-linux;
-              runnerConfig = ./nix/verstak-microvm.nix;
-              nixpkgsFlake = nixpkgs;
-              llmAgentsFlake = llm-agents;
-              microvmFlake = microvm;
-              inherit system;
-            }
-            // docs;
-          };
-        in
-        {
-          default = {
-            type = "app";
-            meta.description = "Run a command inside the Verstak QEMU MicroVM";
-            program = toString launcher;
-          };
-        }
-      );
+      apps = forAllSystems (system: {
+        default = {
+          type = "app";
+          meta.description = "Run a command inside the Verstak QEMU MicroVM";
+          program = toString self.packages.${system}.default;
+        };
+      });
 
       nixosConfigurations.verstak = mkVerstakSystem (
         {
