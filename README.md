@@ -95,12 +95,19 @@ verstak codex
 ```
 
 ```
-PING google.com (142.251.223.110) 56(84) bytes of data.
-64 bytes from tzdela-ar-in-f14.1e100.net (142.251.223.110): icmp_seq=1 ttl=255 time=454 ms
-64 bytes from tzdela-ar-in-f14.1e100.net (142.251.223.110): icmp_seq=2 ttl=255 time=459 ms
-64 bytes from tzdela-ar-in-f14.1e100.net (142.251.223.110): icmp_seq=3 ttl=255 time=457 ms
-64 bytes from tzdela-ar-in-f14.1e100.net (142.251.223.110): icmp_seq=4 ttl=255 time=457 ms
-64 bytes from tzdela-ar-in-f14.1e100.net (142.251.223.110): icmp_seq=5 ttl=255 time=454 ms
+╭──────────────────────────────────────────────╮
+│ >_ OpenAI Codex (v0.130.0)                   │
+│                                              │
+│ model:       gpt-5.5 high   /model to change │
+│ directory:   /workspace/project              │
+│ permissions: YOLO mode                       │
+╰──────────────────────────────────────────────╯
+
+  Tip: Use /status to see the current model, approvals, and token usage.
+
+› Improve documentation in @filename
+
+  gpt-5.5 high · /workspace/project
 ```
 
 > [!NOTE]
