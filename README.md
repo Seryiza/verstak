@@ -9,55 +9,107 @@
 
 verstak is a Nix flake for safe running commands inside small virtual machines.
 
-- ❄️ **NixOS-first**. Use your project-level flake.nix and any additional flakes inside [MicroVMs](https://github.com/microvm-nix/microvm.nix).
-- 🤖 **AI sandbox**. Run your agents with full permissions, either in terminal or with desktop environment.
-- 🐙 **Safe in different ways**. Block internet access, allow only whitelisted MCPs, and attach selected directories to the sandbox.
+- ❄️ **NixOS-first**: use any flake.nix files inside [MicroVMs](https://github.com/microvm-nix/microvm.nix).
+- 🤖 **AI Sandboxes**: run your agents with full permissions without affecting your main system.
+- 👀 **TUI and GUI**: start virtual machines either in _terminal_ or with _desktop environment_.
+- 🐙 **Safe in different ways**: block internet access, allow only whitelisted MCPs, and attach selected directories to the sandbox.
 
 ## Usage
 
-Use the public flake app:
+You need only [Nix or NixOS](https://nixos.org/download).
+
+The simplest way to use verstak is `nix run`:
 
 ```sh
 nix run github:Seryiza/verstak -- [verstak-options] [command] [command-args...]
+
+# or with cloned repository:
+# nix run path:/home/your-username/code/verstak -- [verstak-options] [command] [command-args...]
 ```
 
-The usual local alias is:
+I prefer to add it as shell alias:
 
 ```sh
-alias verstak='nix run github:Seryiza/verstak --'
+alias verstak='nix run github:Seryiza/verstak -- '
+
+# or with cloned repository:
+# alias verstak='nix run path:/home/your-username/code/verstak -- '
 ```
 
-For a local clone of Verstak, use a `path:` flake ref:
+Here are some examples:
+
+### list directory
 
 ```sh
-alias verstak='nix run path:/absolute/path/to/verstak --'
+verstak ls -lh
 ```
 
-Examples:
+```
+total 72K
+drwxr-xr-x 2 steve steve 4.0K May 29 18:55 agents
+-rw-r--r-- 1 steve steve 1.3K May 29 18:55 AGENTS.md
+-rw-r--r-- 1 steve steve 5.5K May 12 00:49 flake.lock
+-rw-r--r-- 1 steve steve 3.3K May 25 09:32 flake.nix
+drwxr-xr-x 3 steve steve 4.0K May 29 18:55 nix
+-rw-r--r-- 1 steve steve 6.7K May 29 18:55 README.md
+-rw-r--r-- 1 steve steve  408 May 25 09:32 shell.nix
+drwxr-xr-x 3 steve steve 4.0K May 11 06:34 skills
+```
+
+> [!NOTE]
+> By default verstak mounts the current working directory to `/workspace/project` inside the VM.
+
+### ping
 
 ```sh
-verstak --allow-internet codex
-verstak claude
-verstak ls -la
-verstak --one-shot ls -la
-verstak --allow-internet -p gui codex --model gpt-5.5
-verstak --allow-internet -C ~/repo codex
-verstak --one-shot claude --version
-verstak -- ls --color=always
+verstak ping google.com
 ```
 
-Verstak options must appear before the command. The first non-option token
-starts the VM command, and all later arguments are passed through unchanged.
-If no command is given, Verstak opens a Bash session.
+```
+ping: google.com: Name or service not known
+```
 
-The selected project is mounted inside the VM at `/workspace/project`. By
-default Verstak mounts the current working directory; override that with
-`-C, --directory`.
+> [!NOTE]
+> By default verstak is started without any network access. If you want to allow internet, use `--allow-internet` parameter.
+
+
+```sh
+verstak --allow-internet ping google.com
+```
+
+```
+PING google.com (142.251.223.110) 56(84) bytes of data.
+64 bytes from tzdela-ar-in-f14.1e100.net (142.251.223.110): icmp_seq=1 ttl=255 time=454 ms
+64 bytes from tzdela-ar-in-f14.1e100.net (142.251.223.110): icmp_seq=2 ttl=255 time=459 ms
+64 bytes from tzdela-ar-in-f14.1e100.net (142.251.223.110): icmp_seq=3 ttl=255 time=457 ms
+64 bytes from tzdela-ar-in-f14.1e100.net (142.251.223.110): icmp_seq=4 ttl=255 time=457 ms
+64 bytes from tzdela-ar-in-f14.1e100.net (142.251.223.110): icmp_seq=5 ttl=255 time=454 ms
+```
+
+### codex
+
+Finally, you can run interactive apps like `codex`:
+
+```sh
+verstak codex
+```
+
+```
+PING google.com (142.251.223.110) 56(84) bytes of data.
+64 bytes from tzdela-ar-in-f14.1e100.net (142.251.223.110): icmp_seq=1 ttl=255 time=454 ms
+64 bytes from tzdela-ar-in-f14.1e100.net (142.251.223.110): icmp_seq=2 ttl=255 time=459 ms
+64 bytes from tzdela-ar-in-f14.1e100.net (142.251.223.110): icmp_seq=3 ttl=255 time=457 ms
+64 bytes from tzdela-ar-in-f14.1e100.net (142.251.223.110): icmp_seq=4 ttl=255 time=457 ms
+64 bytes from tzdela-ar-in-f14.1e100.net (142.251.223.110): icmp_seq=5 ttl=255 time=454 ms
+```
+
+> [!NOTE]
+> verstak autodetects some commands and applies to them special logic. In case of `codex`, verstak provides your host `~/.codex/auth.json` credentials for automatic log-in.
+
+## Options
 
 The writable Nix store overlay is backed by a MicroVM volume and defaults to 4096 MiB.
 `/tmp` is an executable tmpfs capped at 1 GiB by default.
-
-## Options
 
 - `-p, --profile NAME`: add a built-in or flake-provided profile.
 - `-C, --directory PATH`: directory to mount at `/workspace/project`.
