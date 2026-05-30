@@ -2,7 +2,7 @@
 
 let
   cfg = config.verstak;
-  modeInstructions = if cfg.gui.enable then cfg.docs.agentGuiPath else cfg.docs.agentHeadlessPath;
+  modeInstructions = if cfg.internal.isGui then cfg.docs.agentGuiPath else cfg.docs.agentHeadlessPath;
 in
 {
   mkAgentText =

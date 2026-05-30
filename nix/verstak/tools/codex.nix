@@ -34,7 +34,7 @@ let
 
       install -o ${cfg.vm.user} -g ${cfg.internal.vmPrimaryGroup} -m 600 /etc/codex/config.toml ${codexConfigHome}/config.toml
       install -o ${cfg.vm.user} -g ${cfg.internal.vmPrimaryGroup} -m 600 /etc/codex/AGENTS.md ${codexConfigHome}/AGENTS.md
-      ${lib.optionalString cfg.gui.enable ''
+      ${lib.optionalString cfg.internal.isGui ''
         install -d -o ${cfg.vm.user} -g ${cfg.internal.vmPrimaryGroup} -m 700 ${codexConfigHome}/skills/vm-gui
         install -o ${cfg.vm.user} -g ${cfg.internal.vmPrimaryGroup} -m 600 /etc/codex/skills/vm-gui/SKILL.md ${codexConfigHome}/skills/vm-gui/SKILL.md
       ''}

@@ -19,7 +19,7 @@ let
   guiTools = import ../tools/gui.nix { inherit config pkgs; };
 in
 {
-  config = lib.mkIf cfg.gui.enable {
+  config = lib.mkIf cfg.internal.isGui {
     hardware.graphics.enable = true;
 
     services = {

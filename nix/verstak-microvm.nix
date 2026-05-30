@@ -12,6 +12,7 @@
   vmUid ? 1000,
   vmGid ? 1000,
   vmHome ? null,
+  mode ? null,
   profilesJson ? ''["headless"]'',
   commandJson ? ''["bash"]'',
   extraFlakesJson ? "[]",
@@ -35,13 +36,23 @@
 let
   inherit (nixpkgs) lib;
 
-  profiles = lib.unique (builtins.fromJSON profilesJson);
+  rawProfiles = lib.unique (builtins.fromJSON profilesJson);
+  modeProfileNames = [
+    "headless"
+    "gui"
+  ];
+  profiles = lib.subtractLists modeProfileNames rawProfiles;
+  selectedMode =
+    if mode != null then
+      mode
+    else if lib.elem "gui" rawProfiles then
+      "gui"
+    else
+      "headless";
   command = builtins.fromJSON commandJson;
   extraFlakeRefs = builtins.fromJSON extraFlakesJson;
   extraFlakes = map builtins.getFlake extraFlakeRefs;
   builtinProfileNames = [
-    "headless"
-    "gui"
     "codex"
     "claude"
   ];
@@ -93,7 +104,8 @@ let
         inherit useDevshell devshellRef oneShot;
       };
 
-      gui.enable = lib.elem "gui" profiles;
+      mode = selectedMode;
+      gui.enable = selectedMode == "gui";
       codex.enable = lib.elem "codex" profiles;
       claude.enable = lib.elem "claude" profiles;
       codex.appServer = {

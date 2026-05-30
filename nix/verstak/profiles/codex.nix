@@ -80,7 +80,7 @@ in
 
         "codex/AGENTS.md".text = agentText;
       }
-      // lib.optionalAttrs cfg.gui.enable {
+      // lib.optionalAttrs cfg.internal.isGui {
         "codex/skills/vm-gui/SKILL.md".source = cfg.docs.guiSkillPath;
       };
     };
@@ -96,7 +96,7 @@ in
         "verstak-command.service"
         "verstak-shell.service"
       ]
-      ++ lib.optionals cfg.gui.enable [ "greetd.service" ];
+      ++ lib.optionals cfg.internal.isGui [ "greetd.service" ];
       wantedBy = [ "multi-user.target" ];
       path = [ pkgs.coreutils ];
       serviceConfig = {
@@ -109,7 +109,7 @@ in
       "d ${cfg.internal.vmUserHome}/.codex 0700 ${cfg.vm.user} ${cfg.internal.vmPrimaryGroup} -"
       "d /tmp/codex-cache 0700 ${cfg.vm.user} ${cfg.internal.vmPrimaryGroup} -"
     ]
-    ++ lib.optionals cfg.gui.enable [
+    ++ lib.optionals cfg.internal.isGui [
       "d ${cfg.internal.vmUserHome}/.codex/skills 0700 ${cfg.vm.user} ${cfg.internal.vmPrimaryGroup} -"
       "d ${cfg.internal.vmUserHome}/.codex/skills/vm-gui 0700 ${cfg.vm.user} ${cfg.internal.vmPrimaryGroup} -"
       "d ${cfg.internal.vmUserHome}/screenshots 0755 ${cfg.vm.user} ${cfg.internal.vmPrimaryGroup} -"

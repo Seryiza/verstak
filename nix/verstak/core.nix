@@ -33,7 +33,7 @@ in
     vcpu = 4;
     mem = cfg.resources.memoryMb;
     socket = "verstak.sock";
-    graphics.enable = cfg.gui.enable;
+    graphics.enable = cfg.internal.isGui;
 
     shares = [
       {
@@ -91,7 +91,7 @@ in
 
     qemu = {
       serialConsole = false;
-      extraArgs = lib.optionals (!cfg.gui.enable) [
+      extraArgs = lib.optionals (!cfg.internal.isGui) [
         "-device"
         "virtio-serial-pci"
         "-device"
@@ -99,7 +99,7 @@ in
       ];
     };
 
-    kernelParams = lib.optionals (!cfg.gui.enable) [
+    kernelParams = lib.optionals (!cfg.internal.isGui) [
       "8250.nr_uarts=1"
       "quiet"
       "loglevel=0"
@@ -110,7 +110,7 @@ in
   };
 
   boot = {
-    kernelModules = lib.optionals cfg.gui.enable [
+    kernelModules = lib.optionals cfg.internal.isGui [
       "drm"
       "uinput"
       "virtio_gpu"
@@ -145,7 +145,7 @@ in
       extraGroups = [
         "wheel"
       ]
-      ++ lib.optionals cfg.gui.enable [
+      ++ lib.optionals cfg.internal.isGui [
         "input"
         "video"
       ];
@@ -169,7 +169,7 @@ in
       VISUAL = lib.mkDefault "nano";
       XDG_CACHE_HOME = lib.mkDefault "/tmp/verstak-cache";
     }
-    // lib.optionalAttrs cfg.gui.enable {
+    // lib.optionalAttrs cfg.internal.isGui {
       XDG_CURRENT_DESKTOP = "sway";
       XDG_SESSION_TYPE = "wayland";
       WLR_RENDERER_ALLOW_SOFTWARE = "1";

@@ -20,7 +20,7 @@ let
   isCodexCommand =
     cfg.codex.enable && cfg.command.argv != [ ] && builtins.head cfg.command.argv == "codex";
   isCodexAppServer = (cfg.network.mode == "internet") && (!cfg.command.oneShot) && isCodexCommand;
-  isHeadlessCodexAppServer = (!cfg.gui.enable) && isCodexAppServer;
+  isHeadlessCodexAppServer = (!cfg.internal.isGui) && isCodexAppServer;
   effectiveCommand =
     if isCodexAppServer then
       [ "${codexTools.codexAppServer}/bin/codex-app-server" ] ++ lib.tail cfg.command.argv

@@ -66,7 +66,7 @@ in
         "verstak-command.service"
         "verstak-shell.service"
       ]
-      ++ lib.optionals cfg.gui.enable [ "greetd.service" ];
+      ++ lib.optionals cfg.internal.isGui [ "greetd.service" ];
       wantedBy = [ "multi-user.target" ];
       path = [
         pkgs.coreutils

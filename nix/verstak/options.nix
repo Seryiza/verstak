@@ -9,10 +9,19 @@ let
 in
 {
   options.verstak = {
+    mode = mkOption {
+      type = types.enum [
+        "headless"
+        "gui"
+      ];
+      default = "headless";
+      description = "Verstak display and runner mode.";
+    };
+
     profiles = mkOption {
       type = types.listOf types.str;
-      default = [ "headless" ];
-      description = "Selected Verstak profile names.";
+      default = [ ];
+      description = "Selected Verstak agent/profile names, excluding the display mode.";
     };
 
     projectRoot = mkOption {
@@ -75,7 +84,7 @@ in
       };
     };
 
-    gui.enable = mkEnableOption "the Sway GUI profile";
+    gui.enable = mkEnableOption "the Sway GUI mode";
 
     codex = {
       enable = mkEnableOption "Codex CLI integration";
@@ -212,12 +221,19 @@ in
     };
 
     internal = {
+      isGui = mkOption {
+        type = types.bool;
+        default = config.verstak.mode == "gui" || config.verstak.gui.enable;
+        internal = true;
+        description = "Whether GUI mode is effectively enabled.";
+      };
+
       mode = mkOption {
         type = types.enum [
           "headless"
           "gui"
         ];
-        default = if config.verstak.gui.enable then "gui" else "headless";
+        default = if config.verstak.internal.isGui then "gui" else "headless";
         internal = true;
         description = "Derived guest mode.";
       };
@@ -268,4 +284,6 @@ in
       };
     };
   };
+
+  config.verstak.gui.enable = lib.mkDefault (config.verstak.mode == "gui");
 }

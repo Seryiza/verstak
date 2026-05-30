@@ -57,14 +57,14 @@ let
   attachedCommand = cfg.command.oneShot;
 in
 {
-  boot.consoleLogLevel = lib.mkIf (!cfg.gui.enable) 0;
+  boot.consoleLogLevel = lib.mkIf (!cfg.internal.isGui) 0;
 
   systemd.services = {
-    "serial-getty@ttyS0".enable = lib.mkIf (!cfg.gui.enable) false;
-    "serial-getty@hvc0".enable = lib.mkIf (!cfg.gui.enable) false;
+    "serial-getty@ttyS0".enable = lib.mkIf (!cfg.internal.isGui) false;
+    "serial-getty@hvc0".enable = lib.mkIf (!cfg.internal.isGui) false;
 
     verstak-shell =
-      lib.mkIf ((!cfg.gui.enable) && (!cfg.command.oneShot) && (!baseTools.isHeadlessCodexAppServer))
+      lib.mkIf ((!cfg.internal.isGui) && (!cfg.command.oneShot) && (!baseTools.isHeadlessCodexAppServer))
         {
           description = "Verstak interactive shell";
           after = [
@@ -105,7 +105,7 @@ in
         };
 
     verstak-command =
-      lib.mkIf ((!cfg.gui.enable) && (attachedCommand || baseTools.isHeadlessCodexAppServer))
+      lib.mkIf ((!cfg.internal.isGui) && (attachedCommand || baseTools.isHeadlessCodexAppServer))
         {
           description = "Verstak command";
           after = [

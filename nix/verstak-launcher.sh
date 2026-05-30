@@ -369,6 +369,9 @@ if [ "${command[0]}" = "claude" ]; then
   add_profile claude
 fi
 
+mode=headless
+has_profile gui && mode=gui
+
 state_dir="${state_dir_input:-$HOME/.local/state/verstak/$project_name}"
 devshell_ref="$(normalize_devshell_ref "$devshell_ref_input")"
 
@@ -408,6 +411,7 @@ runner="$(@nix@/bin/nix build --no-link --print-out-paths \
   --argstr projectRoot "$project_root" \
   --argstr projectName "$project_name" \
   --argstr stateDir "$state_dir" \
+  --argstr mode "$mode" \
   --argstr profilesJson "$profiles_json" \
   --argstr commandJson "$command_json" \
   --argstr extraFlakesJson "$extra_flakes_json" \
@@ -426,9 +430,6 @@ runner="$(@nix@/bin/nix build --no-link --print-out-paths \
   --arg agentGuiPath @agentGuiPath@ \
   --arg agentHeadlessPath @agentHeadlessPath@ \
   --arg guiSkillPath @guiSkillPath@)"
-
-mode=headless
-has_profile gui && mode=gui
 
 command_display=""
 printf -v command_display '%q ' "${command[@]}"
