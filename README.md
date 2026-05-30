@@ -38,7 +38,10 @@ alias verstak='nix run github:Seryiza/verstak -- '
 
 Here are some examples:
 
-### list directory
+### ls: filesystem
+
+> [!NOTE]
+> By default verstak mounts the current working directory to `/workspace/project` inside the VM.
 
 ```sh
 verstak ls -lh
@@ -56,10 +59,10 @@ drwxr-xr-x 3 steve steve 4.0K May 29 18:55 nix
 drwxr-xr-x 3 steve steve 4.0K May 11 06:34 skills
 ```
 
-> [!NOTE]
-> By default verstak mounts the current working directory to `/workspace/project` inside the VM.
+### ping: network access
 
-### ping
+> [!NOTE]
+> By default verstak is started without any network access.
 
 ```sh
 verstak ping google.com
@@ -70,8 +73,7 @@ ping: google.com: Name or service not known
 ```
 
 > [!NOTE]
-> By default verstak is started without any network access. If you want to allow internet, use `--allow-internet` parameter.
-
+> If you want to allow internet, use `--allow-internet` parameter.
 
 ```sh
 verstak --allow-internet ping google.com
@@ -86,9 +88,10 @@ PING google.com (142.251.223.110) 56(84) bytes of data.
 64 bytes from tzdela-ar-in-f14.1e100.net (142.251.223.110): icmp_seq=5 ttl=255 time=454 ms
 ```
 
-### codex
+### codex: interactive apps
 
-Finally, you can run interactive apps like `codex`:
+> [!NOTE]
+> verstak autodetects some commands and applies to them special logic. In case of `codex`, verstak provides your host `~/.codex/auth.json` credentials for automatic log-in.
 
 ```sh
 verstak codex
@@ -109,9 +112,6 @@ verstak codex
 
   gpt-5.5 high · /workspace/project
 ```
-
-> [!NOTE]
-> verstak autodetects some commands and applies to them special logic. In case of `codex`, verstak provides your host `~/.codex/auth.json` credentials for automatic log-in.
 
 ## Options
 
