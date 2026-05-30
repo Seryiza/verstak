@@ -133,6 +133,8 @@ state_dir_input="${VERSTAK_STATE_DIR:-}"
 mem_mb="${VERSTAK_MEM_MB:-8192}"
 store_overlay_size_mb="${VERSTAK_STORE_OVERLAY_MB:-4096}"
 tmpfs_size="${VERSTAK_TMPFS_SIZE:-1G}"
+tty_rows="${VERSTAK_TTY_ROWS:-}"
+tty_columns="${VERSTAK_TTY_COLUMNS:-}"
 codex_app_server_port="${VERSTAK_APP_SERVER_PORT:-4500}"
 codex_app_server_host_address="${VERSTAK_APP_SERVER_HOST:-127.0.0.1}"
 use_devshell=false
@@ -281,6 +283,32 @@ esac
 if ! [[ "$tmpfs_size" =~ ^[0-9]+([KkMmGgTtPpEe]?|%)$ ]]; then
   die "tmpfs size must be a value such as 1024M, 1G, or 50%"
 fi
+if [ -z "$tty_rows" ] || [ -z "$tty_columns" ]; then
+  if [ -t 1 ]; then
+    read -r detected_rows detected_columns < <(@coreutils@/bin/stty size 2>/dev/null || printf '40 120\n')
+    tty_rows="${tty_rows:-$detected_rows}"
+    tty_columns="${tty_columns:-$detected_columns}"
+  fi
+  tty_rows="${tty_rows:-40}"
+  tty_columns="${tty_columns:-120}"
+fi
+case "$tty_rows" in
+  ""|*[!0-9]*)
+    die "terminal rows must be a decimal number"
+    ;;
+esac
+case "$tty_columns" in
+  ""|*[!0-9]*)
+    die "terminal columns must be a decimal number"
+    ;;
+esac
+if [ "$tty_rows" -le 0 ]; then
+  tty_rows=40
+fi
+if [ "$tty_columns" -le 0 ]; then
+  tty_columns=120
+fi
+
 case "$one_shot" in
   true|false)
     ;;
@@ -375,6 +403,8 @@ runner="$(@nix@/bin/nix build --no-link --print-out-paths \
   --argstr devshellRef "$devshell_ref" \
   --arg oneShot "$one_shot" \
   --arg memMb "$mem_mb" \
+  --arg ttyRows "$tty_rows" \
+  --arg ttyColumns "$tty_columns" \
   --argstr networkMode "$network_mode" \
   --arg storeOverlaySizeMb "$store_overlay_size_mb" \
   --argstr tmpfsSize "$tmpfs_size" \
@@ -404,6 +434,7 @@ echo "  Command:  ${command_display% }"
 echo "  Session:  $([ "$one_shot" = true ] && printf '%s' one-shot || printf '%s' interactive)"
 echo "  Memory:   $mem_mb MB"
 echo "  /tmp:     $tmpfs_size tmpfs"
+echo "  Terminal: ${tty_columns}x${tty_rows}"
 echo "  Nix store overlay: $store_overlay_size_mb MiB"
 echo "  Network:  $network_mode"
 if [ "$use_devshell" = true ]; then

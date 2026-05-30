@@ -143,6 +143,7 @@ The launcher prints the exact command before starting the VM.
 - `VERSTAK_MEM_MB`: VM memory in megabytes. Defaults to `8192`.
 - `VERSTAK_STORE_OVERLAY_MB`: writable Nix store overlay volume size in mebibytes. Defaults to `4096`.
 - `VERSTAK_TMPFS_SIZE`: executable `/tmp` tmpfs size. Accepts values such as `1024M`, `1G`, or `50%`. Defaults to `1G`.
+- `VERSTAK_TTY_ROWS`, `VERSTAK_TTY_COLUMNS`: override the headless terminal size. Defaults to the host terminal size when available, otherwise `40x120`.
 - `VERSTAK_MODE`: default mode when neither `gui` nor `headless` is selected. Accepts `gui` or `headless`.
 - `VERSTAK_NETWORK_MODE`: guest network policy. Accepts `deny` or `internet`; defaults to `deny`.
 

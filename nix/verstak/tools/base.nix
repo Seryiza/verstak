@@ -25,6 +25,8 @@ let
     export LOGNAME=${cfg.vm.user}
     export PATH=${basePath}
     export TERM=''${VERSTAK_TERM:-xterm-256color}
+    export COLUMNS=''${COLUMNS:-${toString cfg.terminal.columns}}
+    export LINES=''${LINES:-${toString cfg.terminal.rows}}
     ${lib.optionalString
     (runInitialCommand && (!cfg.command.oneShot) && (!isCodexAppServer)) ''
       printf '$ %s\n' ${
@@ -71,6 +73,8 @@ let
     export LOGNAME=${cfg.vm.user}
     export PATH=${basePath}
     export TERM=''${VERSTAK_TERM:-xterm-256color}
+    export COLUMNS=''${COLUMNS:-${toString cfg.terminal.columns}}
+    export LINES=''${LINES:-${toString cfg.terminal.rows}}
     export PS1='\u@verstak:\w\$ '
     alias poweroff=verstak-poweroff
     alias shutdown=verstak-poweroff
@@ -95,6 +99,8 @@ let
     export LOGNAME=${cfg.vm.user}
     export PATH=${basePath}
     export TERM=''${VERSTAK_TERM:-xterm-256color}
+    export COLUMNS=''${COLUMNS:-${toString cfg.terminal.columns}}
+    export LINES=''${LINES:-${toString cfg.terminal.rows}}
     ${lib.optionalString (!runInitialCommand) ''
       printf '\nVerstak headless shell\n'
       printf 'Project: %s. Power off with: verstak-poweroff\n' ${

@@ -135,6 +135,20 @@ in {
       };
     };
 
+    terminal = {
+      rows = mkOption {
+        type = types.int;
+        default = 40;
+        description = "Headless terminal row count.";
+      };
+
+      columns = mkOption {
+        type = types.int;
+        default = 120;
+        description = "Headless terminal column count.";
+      };
+    };
+
     resources = {
       memoryMb = mkOption {
         type = types.int;

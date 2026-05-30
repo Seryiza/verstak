@@ -5,9 +5,9 @@
 , vmGroup ? null, vmUid ? 1000, vmGid ? 1000, vmHome ? null
 , profilesJson ? ''["headless"]'', commandJson ? ''["bash"]''
 , extraFlakesJson ? "[]", useDevshell ? false, devshellRef ? projectMount
-, oneShot ? false, memMb ? 8192, codexAppServerPort ? 4500
-, codexAppServerHostAddress ? "127.0.0.1", networkMode ? "deny"
-, storeOverlaySizeMb ? 4096, tmpfsSize ? "1G"
+, oneShot ? false, memMb ? 8192, ttyRows ? 40, ttyColumns ? 120
+, codexAppServerPort ? 4500, codexAppServerHostAddress ? "127.0.0.1"
+, networkMode ? "deny", storeOverlaySizeMb ? 4096, tmpfsSize ? "1G"
 , agentBasePath ? ../agents/vm-base.md, agentGuiPath ? ../agents/vm-gui.md
 , agentHeadlessPath ? ../agents/vm-headless.md
 , guiSkillPath ? ../skills/vm-gui/SKILL.md, }:
@@ -68,6 +68,11 @@ let
       };
 
       network.mode = networkMode;
+
+      terminal = {
+        rows = ttyRows;
+        columns = ttyColumns;
+      };
 
       resources = {
         memoryMb = memMb;

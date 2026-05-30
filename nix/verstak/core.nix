@@ -50,11 +50,10 @@ in {
     shares = [
       {
         tag = "project";
-        proto = "9p";
+        proto = "virtiofs";
         source = cfg.projectRoot;
         mountPoint = cfg.projectMount;
         cache = "metadata";
-        securityModel = "mapped";
       }
       {
         tag = "home";
@@ -168,14 +167,6 @@ in {
       };
     };
   };
-
-  fileSystems.${cfg.projectMount}.options = lib.mkForce [
-    "trans=virtio"
-    "version=9p2000.L"
-    "msize=65536"
-    "access=any"
-    "x-systemd.after=systemd-modules-load.service"
-  ];
 
   nix = {
     enable = true;

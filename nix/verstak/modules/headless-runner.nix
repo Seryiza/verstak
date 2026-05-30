@@ -28,8 +28,7 @@ let
   claudeAuthDependency =
     lib.optionals cfg.claude.enable [ "verstak-claude-auth.service" ];
   authDependencies = codexAuthDependency ++ claudeAuthDependency;
-  attachedCommand = cfg.command.oneShot
-    || (baseTools.runInitialCommand && (!baseTools.isHeadlessCodexAppServer));
+  attachedCommand = cfg.command.oneShot;
 in {
   boot.consoleLogLevel = lib.mkIf (!cfg.gui.enable) 0;
   systemd.services."serial-getty@ttyS0".enable =
@@ -38,8 +37,7 @@ in {
     lib.mkIf (!cfg.gui.enable) false;
 
   systemd.services.verstak-shell = lib.mkIf ((!cfg.gui.enable)
-    && (!cfg.command.oneShot) && (!baseTools.runInitialCommand)
-    && (!baseTools.isHeadlessCodexAppServer)) {
+    && (!cfg.command.oneShot) && (!baseTools.isHeadlessCodexAppServer)) {
       description = "Verstak interactive shell";
       after = [ "network-online.target" "systemd-tmpfiles-setup.service" ]
         ++ authDependencies;
@@ -62,6 +60,8 @@ in {
         StandardError = "tty";
         TTYPath = "/dev/hvc0";
         TTYReset = true;
+        TTYRows = cfg.terminal.rows;
+        TTYColumns = cfg.terminal.columns;
         TTYVHangup = false;
       } // lib.optionalAttrs (!baseTools.runInitialCommand) {
         Restart = "always";
@@ -96,7 +96,9 @@ in {
       } // lib.optionalAttrs attachedCommand {
         StandardInput = "tty";
         TTYPath = "/dev/hvc0";
-        TTYReset = false;
+        TTYReset = true;
+        TTYRows = cfg.terminal.rows;
+        TTYColumns = cfg.terminal.columns;
         TTYVHangup = true;
       };
     };
