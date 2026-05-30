@@ -1,4 +1,4 @@
-{ config, lib, pkgs }:
+{ config, pkgs }:
 
 let
   cfg = config.verstak;
@@ -230,8 +230,17 @@ let
     export YDOTOOL_SOCKET=/tmp/.ydotool_socket
     exec ${pkgs.ydotool}/bin/ydotool mousemove --absolute "$1" "$2"
   '';
-in {
-  inherit vmClick vmFocus vmKey vmMoveMouse vmScreenshot vmType vmWindows;
+in
+{
+  inherit
+    vmClick
+    vmFocus
+    vmKey
+    vmMoveMouse
+    vmScreenshot
+    vmType
+    vmWindows
+    ;
 
   packages = [
     pkgs.firefox

@@ -1,21 +1,31 @@
-{ config, lib, llmAgents ? null, pkgs }:
+{
+  config,
+  lib,
+  llmAgents ? null,
+  pkgs,
+}:
 
 let
   cfg = config.verstak;
-  codexTools = import ./codex.nix { inherit config lib llmAgents pkgs; };
+  codexTools = import ./codex.nix {
+    inherit
+      config
+      lib
+      llmAgents
+      pkgs
+      ;
+  };
   userLocalBin = "${cfg.internal.vmUserHome}/.local/bin";
-  basePath =
-    "${userLocalBin}:/run/wrappers/bin:/run/current-system/sw/bin:${pkgs.coreutils}/bin:${pkgs.bashInteractive}/bin:${pkgs.nix}/bin:$PATH";
-  isCodexCommand = cfg.codex.enable && cfg.command.argv != [ ]
-    && builtins.head cfg.command.argv == "codex";
-  isCodexAppServer = (cfg.network.mode == "internet") && (!cfg.command.oneShot)
-    && isCodexCommand;
+  basePath = "${userLocalBin}:/run/wrappers/bin:/run/current-system/sw/bin:${pkgs.coreutils}/bin:${pkgs.bashInteractive}/bin:${pkgs.nix}/bin:$PATH";
+  isCodexCommand =
+    cfg.codex.enable && cfg.command.argv != [ ] && builtins.head cfg.command.argv == "codex";
+  isCodexAppServer = (cfg.network.mode == "internet") && (!cfg.command.oneShot) && isCodexCommand;
   isHeadlessCodexAppServer = (!cfg.gui.enable) && isCodexAppServer;
-  effectiveCommand = if isCodexAppServer then
-    [ "${codexTools.codexAppServer}/bin/codex-app-server" ]
-    ++ lib.tail cfg.command.argv
-  else
-    cfg.command.argv;
+  effectiveCommand =
+    if isCodexAppServer then
+      [ "${codexTools.codexAppServer}/bin/codex-app-server" ] ++ lib.tail cfg.command.argv
+    else
+      cfg.command.argv;
 
   runCommand = pkgs.writeShellScriptBin "verstak-run-command" ''
     set -euo pipefail
@@ -27,19 +37,19 @@ let
     export TERM=''${VERSTAK_TERM:-xterm-256color}
     export COLUMNS=''${COLUMNS:-${toString cfg.terminal.columns}}
     export LINES=''${LINES:-${toString cfg.terminal.rows}}
-    ${lib.optionalString
-    (runInitialCommand && (!cfg.command.oneShot) && (!isCodexAppServer)) ''
-      printf '$ %s\n' ${
-        lib.escapeShellArg (lib.escapeShellArgs cfg.command.argv)
-      }
+    ${lib.optionalString (runInitialCommand && (!cfg.command.oneShot) && (!isCodexAppServer)) ''
+      printf '$ %s\n' ${lib.escapeShellArg (lib.escapeShellArgs cfg.command.argv)}
     ''}
-    ${if cfg.command.useDevshell then ''
-      exec ${pkgs.nix}/bin/nix develop ${
-        lib.escapeShellArg cfg.command.devshellRef
-      } --command ${lib.escapeShellArgs effectiveCommand}
-    '' else ''
-      exec ${lib.escapeShellArgs effectiveCommand}
-    ''}
+    ${
+      if cfg.command.useDevshell then
+        ''
+          exec ${pkgs.nix}/bin/nix develop ${lib.escapeShellArg cfg.command.devshellRef} --command ${lib.escapeShellArgs effectiveCommand}
+        ''
+      else
+        ''
+          exec ${lib.escapeShellArgs effectiveCommand}
+        ''
+    }
   '';
 
   runInitialCommand = cfg.command.argv != [ ] && cfg.command.argv != [ "bash" ];
@@ -82,11 +92,9 @@ let
 
     if [ -z "''${VERSTAK_INTERACTIVE_BOOTSTRAPPED:-}" ]; then
       export VERSTAK_INTERACTIVE_BOOTSTRAPPED=1
-      ${
-        lib.optionalString (!runInitialCommand) ''
-          printf '\nVerstak shell: %s\n' ${lib.escapeShellArg cfg.projectMount}
-        ''
-      }
+      ${lib.optionalString (!runInitialCommand) ''
+        printf '\nVerstak shell: %s\n' ${lib.escapeShellArg cfg.projectMount}
+      ''}
       ${interactiveCommand}
     fi
   '';
@@ -103,21 +111,30 @@ let
     export LINES=''${LINES:-${toString cfg.terminal.rows}}
     ${lib.optionalString (!runInitialCommand) ''
       printf '\nVerstak headless shell\n'
-      printf 'Project: %s. Power off with: verstak-poweroff\n' ${
-        lib.escapeShellArg cfg.projectMount
-      }
+      printf 'Project: %s. Power off with: verstak-poweroff\n' ${lib.escapeShellArg cfg.projectMount}
     ''}
-    ${if cfg.command.useDevshell then ''
-      exec ${pkgs.nix}/bin/nix develop ${
-        lib.escapeShellArg cfg.command.devshellRef
-      } --command ${pkgs.bashInteractive}/bin/bash --rcfile ${interactiveBashRc} -i
-    '' else ''
-      exec ${pkgs.bashInteractive}/bin/bash --rcfile ${interactiveBashRc} -i
-    ''}
+    ${
+      if cfg.command.useDevshell then
+        ''
+          exec ${pkgs.nix}/bin/nix develop ${lib.escapeShellArg cfg.command.devshellRef} --command ${pkgs.bashInteractive}/bin/bash --rcfile ${interactiveBashRc} -i
+        ''
+      else
+        ''
+          exec ${pkgs.bashInteractive}/bin/bash --rcfile ${interactiveBashRc} -i
+        ''
+    }
   '';
-in {
-  inherit effectiveCommand interactiveShell isCodexAppServer
-    isHeadlessCodexAppServer runCommand runInitialCommand verstakPoweroff;
+in
+{
+  inherit
+    effectiveCommand
+    interactiveShell
+    isCodexAppServer
+    isHeadlessCodexAppServer
+    runCommand
+    runInitialCommand
+    verstakPoweroff
+    ;
 
   packages = [
     pkgs.bashInteractive

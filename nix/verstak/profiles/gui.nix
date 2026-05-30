@@ -1,24 +1,48 @@
-{ config, lib, llmAgents ? null, pkgs, ... }:
+{
+  config,
+  lib,
+  llmAgents ? null,
+  pkgs,
+  ...
+}:
 
 let
   cfg = config.verstak;
-  baseTools = import ../tools/base.nix { inherit config lib llmAgents pkgs; };
-  guiTools = import ../tools/gui.nix { inherit config lib pkgs; };
-in {
+  baseTools = import ../tools/base.nix {
+    inherit
+      config
+      lib
+      llmAgents
+      pkgs
+      ;
+  };
+  guiTools = import ../tools/gui.nix { inherit config pkgs; };
+in
+{
   config = lib.mkIf cfg.gui.enable {
     hardware.graphics.enable = true;
-    services.dbus.enable = true;
 
-    services.udev.extraRules = ''
-      KERNEL=="uinput", MODE="0660", GROUP="input", OPTIONS+="static_node=uinput"
-    '';
+    services = {
+      dbus.enable = true;
+
+      udev.extraRules = ''
+        KERNEL=="uinput", MODE="0660", GROUP="input", OPTIONS+="static_node=uinput"
+      '';
+
+      greetd = {
+        enable = true;
+        settings.default_session = {
+          inherit (cfg.vm) user;
+          command = "${pkgs.sway}/bin/sway --config /etc/sway/config";
+        };
+      };
+    };
 
     systemd.services.ydotoold = {
       description = "ydotool virtual input daemon";
       wantedBy = [ "multi-user.target" ];
       serviceConfig = {
-        ExecStart =
-          "${pkgs.ydotool}/bin/ydotoold --socket-path=/tmp/.ydotool_socket --socket-perm=0666";
+        ExecStart = "${pkgs.ydotool}/bin/ydotoold --socket-path=/tmp/.ydotool_socket --socket-perm=0666";
         Restart = "on-failure";
       };
     };
@@ -28,21 +52,16 @@ in {
       wrapperFeatures.gtk = true;
     };
 
-    services.greetd = {
-      enable = true;
-      settings.default_session = {
-        user = cfg.vm.user;
-        command = "${pkgs.sway}/bin/sway --config /etc/sway/config";
-      };
-    };
-
     xdg.portal = {
       enable = true;
       wlr.enable = true;
       extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
     };
 
-    fonts.packages = [ pkgs.dejavu_fonts pkgs.nerd-fonts.jetbrains-mono ];
+    fonts.packages = [
+      pkgs.dejavu_fonts
+      pkgs.nerd-fonts.jetbrains-mono
+    ];
 
     environment.systemPackages = guiTools.packages;
 

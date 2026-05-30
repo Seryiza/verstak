@@ -1,4 +1,9 @@
-{ config, lib, llmAgents ? null, pkgs }:
+{
+  config,
+  lib,
+  llmAgents ? null,
+  pkgs,
+}:
 
 let
   cfg = config.verstak;
@@ -6,10 +11,11 @@ let
   claudeGlobalConfig = "${cfg.internal.vmUserHome}/.claude.json";
   claudeAuthSeedMount = "/run/verstak-claude-auth";
 
-  claudePackage = if llmAgents == null then
-    throw "the claude profile requires the llm-agents flake input"
-  else
-    pkgs.llm-agents.claude-code;
+  claudePackage =
+    if llmAgents == null then
+      throw "the claude profile requires the llm-agents flake input"
+    else
+      pkgs.llm-agents.claude-code;
 
   seedClaudeAuth = pkgs.writeShellScriptBin "verstak-seed-claude-auth" ''
     set -euo pipefail
@@ -28,17 +34,11 @@ let
       | .projects[$project].hasCompletedProjectOnboarding = true
       | .projects[$project].projectOnboardingSeenCount = 1'
     if [ -f ${claudeAuthSeedMount}/.claude.json ]; then
-      ${pkgs.jq}/bin/jq --arg project ${
-        lib.escapeShellArg cfg.projectMount
-      } -s "$global_filter" /etc/claude/claude.json ${claudeAuthSeedMount}/.claude.json > "$global_tmp"
+      ${pkgs.jq}/bin/jq --arg project ${lib.escapeShellArg cfg.projectMount} -s "$global_filter" /etc/claude/claude.json ${claudeAuthSeedMount}/.claude.json > "$global_tmp"
     elif [ -f ${claudeGlobalConfig} ]; then
-      ${pkgs.jq}/bin/jq --arg project ${
-        lib.escapeShellArg cfg.projectMount
-      } -s "$global_filter" /etc/claude/claude.json ${claudeGlobalConfig} > "$global_tmp"
+      ${pkgs.jq}/bin/jq --arg project ${lib.escapeShellArg cfg.projectMount} -s "$global_filter" /etc/claude/claude.json ${claudeGlobalConfig} > "$global_tmp"
     else
-      ${pkgs.jq}/bin/jq --arg project ${
-        lib.escapeShellArg cfg.projectMount
-      } '.theme = "light-daltonized"
+      ${pkgs.jq}/bin/jq --arg project ${lib.escapeShellArg cfg.projectMount} '.theme = "light-daltonized"
         | .bypassPermissionsModeAccepted = true
         | .projects[$project].hasTrustDialogAccepted = true
         | .projects[$project].hasCompletedProjectOnboarding = true
@@ -60,9 +60,15 @@ let
 
     install -o ${cfg.vm.user} -g ${cfg.internal.vmPrimaryGroup} -m 600 /etc/claude/CLAUDE.md ${claudeConfigHome}/CLAUDE.md
   '';
-in {
-  inherit claudeAuthSeedMount claudeConfigHome claudeGlobalConfig claudePackage
-    seedClaudeAuth;
+in
+{
+  inherit
+    claudeAuthSeedMount
+    claudeConfigHome
+    claudeGlobalConfig
+    claudePackage
+    seedClaudeAuth
+    ;
 
   packages = [ claudePackage ];
 }

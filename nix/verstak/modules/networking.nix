@@ -9,9 +9,9 @@ let
   allowedDomains = lib.unique cfg.network.allowedDomains;
   allowedTcpPorts = lib.unique cfg.network.allowedTCPPorts;
   allowedTcpPortsSet = nftSet (map toString allowedTcpPorts);
-  allowedDomainNftSets = map (domain:
-    "/${domain}/4#inet#verstak_egress#allowed_ipv4,6#inet#verstak_egress#allowed_ipv6")
-    allowedDomains;
+  allowedDomainNftSets = map (
+    domain: "/${domain}/4#inet#verstak_egress#allowed_ipv4,6#inet#verstak_egress#allowed_ipv6"
+  ) allowedDomains;
   blockedIPv4Ranges = [
     "0.0.0.0/8"
     "10.0.0.0/8"
@@ -39,7 +39,8 @@ let
     "fe80::/10"
     "ff00::/8"
   ];
-in {
+in
+{
   assertions = [
     {
       assertion = !allowlistNetwork || allowedDomains != [ ];
@@ -66,32 +67,39 @@ in {
   ];
 
   microvm = {
-    interfaces = lib.mkForce (lib.optionals networkEnabled [{
-      type = "user";
-      id = "usernet";
-      mac = "02:00:00:00:00:01";
-    }]);
+    interfaces = lib.mkForce (
+      lib.optionals networkEnabled [
+        {
+          type = "user";
+          id = "usernet";
+          mac = "02:00:00:00:00:01";
+        }
+      ]
+    );
 
-    forwardPorts = lib.mkForce
-      (lib.optionals (internetNetwork && cfg.codex.enable) [{
-        from = "host";
-        host.address = cfg.codex.appServer.hostAddress;
-        host.port = cfg.codex.appServer.port;
-        guest.port = cfg.codex.appServer.port;
-      }]);
+    forwardPorts = lib.mkForce (
+      lib.optionals (internetNetwork && cfg.codex.enable) [
+        {
+          from = "host";
+          host.address = cfg.codex.appServer.hostAddress;
+          host.port = cfg.codex.appServer.port;
+          guest.port = cfg.codex.appServer.port;
+        }
+      ]
+    );
   };
 
   networking = {
     useDHCP = lib.mkDefault networkEnabled;
     enableIPv6 = lib.mkIf networkEnabled false;
-    nameservers = lib.mkIf networkEnabled
-      (if allowlistNetwork then [ "127.0.0.1" ] else cfg.network.dnsServers);
+    nameservers = lib.mkIf networkEnabled (
+      if allowlistNetwork then [ "127.0.0.1" ] else cfg.network.dnsServers
+    );
     dhcpcd.extraConfig = lib.mkIf networkEnabled "nohook resolv.conf";
 
     firewall = {
       enable = true;
-      allowedTCPPorts = lib.optionals (internetNetwork && cfg.codex.enable)
-        [ cfg.codex.appServer.port ];
+      allowedTCPPorts = lib.optionals (internetNetwork && cfg.codex.enable) [ cfg.codex.appServer.port ];
     };
 
     nftables = lib.mkIf networkEnabled {
@@ -125,24 +133,20 @@ in {
             ip daddr ${nftSet blockedIPv4Ranges} drop
             ip6 daddr ${nftSet blockedIPv6Ranges} drop
 
-            ${
-              lib.optionalString allowlistNetwork ''
-                # Let the local dnsmasq resolver populate the domain allowlist nft sets.
-                ip daddr ${nftSet cfg.network.dnsServers} udp dport 53 accept
-                ip daddr ${nftSet cfg.network.dnsServers} tcp dport 53 accept
+            ${lib.optionalString allowlistNetwork ''
+              # Let the local dnsmasq resolver populate the domain allowlist nft sets.
+              ip daddr ${nftSet cfg.network.dnsServers} udp dport 53 accept
+              ip daddr ${nftSet cfg.network.dnsServers} tcp dport 53 accept
 
-                # Permit configured TCP ports only to addresses resolved from allowed domains.
-                ip daddr @allowed_ipv4 tcp dport ${allowedTcpPortsSet} accept
-                ip6 daddr @allowed_ipv6 tcp dport ${allowedTcpPortsSet} accept
-              ''
-            }
+              # Permit configured TCP ports only to addresses resolved from allowed domains.
+              ip daddr @allowed_ipv4 tcp dport ${allowedTcpPortsSet} accept
+              ip6 daddr @allowed_ipv6 tcp dport ${allowedTcpPortsSet} accept
+            ''}
 
-            ${
-              lib.optionalString internetNetwork ''
-                ip protocol { tcp, udp, icmp } accept
-                ip6 nexthdr { tcp, udp, ipv6-icmp } accept
-              ''
-            }
+            ${lib.optionalString internetNetwork ''
+              ip protocol { tcp, udp, icmp } accept
+              ip6 nexthdr { tcp, udp, ipv6-icmp } accept
+            ''}
           }
         '';
       };
@@ -164,6 +168,8 @@ in {
   systemd.services.dnsmasq = lib.mkIf allowlistNetwork {
     after = [ "nftables.service" ];
     wants = [ "nftables.service" ];
-    serviceConfig = { AmbientCapabilities = [ "CAP_NET_ADMIN" ]; };
+    serviceConfig = {
+      AmbientCapabilities = [ "CAP_NET_ADMIN" ];
+    };
   };
 }

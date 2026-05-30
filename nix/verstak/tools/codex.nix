@@ -1,16 +1,18 @@
-{ config, lib, llmAgents ? null, pkgs }:
+{
+  config,
+  lib,
+  llmAgents ? null,
+  pkgs,
+}:
 
 let
   cfg = config.verstak;
   codexConfigHome = "${cfg.internal.vmUserHome}/.codex";
   codexAuthSeedMount = "/run/verstak-codex-auth";
   codexAppServerListen = "ws://0.0.0.0:${toString cfg.codex.appServer.port}";
-  codexAppServerRemote = "ws://${cfg.codex.appServer.hostAddress}:${
-      toString cfg.codex.appServer.port
-    }";
+  codexAppServerRemote = "ws://${cfg.codex.appServer.hostAddress}:${toString cfg.codex.appServer.port}";
 
-  codexPackage =
-    if llmAgents == null then pkgs.codex else pkgs.llm-agents.codex;
+  codexPackage = if llmAgents == null then pkgs.codex else pkgs.llm-agents.codex;
 
   codexEditor = pkgs.writeShellScriptBin "codex-editor" ''
     set -euo pipefail
@@ -47,9 +49,22 @@ let
       -c shell_environment_policy.inherit='"all"' \
       "$@"
   '';
-in {
-  inherit codexAppServer codexAppServerListen codexAppServerRemote
-    codexAuthSeedMount codexConfigHome codexEditor codexPackage seedCodexAuth;
+in
+{
+  inherit
+    codexAppServer
+    codexAppServerListen
+    codexAppServerRemote
+    codexAuthSeedMount
+    codexConfigHome
+    codexEditor
+    codexPackage
+    seedCodexAuth
+    ;
 
-  packages = [ codexPackage codexAppServer codexEditor ];
+  packages = [
+    codexPackage
+    codexAppServer
+    codexEditor
+  ];
 }

@@ -1,50 +1,84 @@
-{ nixpkgs, microvm, llmAgents ? null, system ? builtins.currentSystem
-, projectRoot ? builtins.getEnv "PWD"
-, projectName ? builtins.baseNameOf (toString projectRoot)
-, projectMount ? "/workspace/project", stateDir, vmUser ? "steve"
-, vmGroup ? null, vmUid ? 1000, vmGid ? 1000, vmHome ? null
-, profilesJson ? ''["headless"]'', commandJson ? ''["bash"]''
-, extraFlakesJson ? "[]", useDevshell ? false, devshellRef ? projectMount
-, oneShot ? false, memMb ? 8192, ttyRows ? 40, ttyColumns ? 120
-, codexAppServerPort ? 4500, codexAppServerHostAddress ? "127.0.0.1"
-, networkMode ? "deny", storeOverlaySizeMb ? 4096, tmpfsSize ? "1G"
-, agentBasePath ? ../agents/vm-base.md, agentGuiPath ? ../agents/vm-gui.md
-, agentHeadlessPath ? ../agents/vm-headless.md
-, guiSkillPath ? ../skills/vm-gui/SKILL.md, }:
+{
+  nixpkgs,
+  microvm,
+  llmAgents ? null,
+  system ? builtins.currentSystem,
+  projectRoot ? builtins.getEnv "PWD",
+  projectName ? builtins.baseNameOf (toString projectRoot),
+  projectMount ? "/workspace/project",
+  stateDir,
+  vmUser ? "steve",
+  vmGroup ? null,
+  vmUid ? 1000,
+  vmGid ? 1000,
+  vmHome ? null,
+  profilesJson ? ''["headless"]'',
+  commandJson ? ''["bash"]'',
+  extraFlakesJson ? "[]",
+  useDevshell ? false,
+  devshellRef ? projectMount,
+  oneShot ? false,
+  memMb ? 8192,
+  ttyRows ? 40,
+  ttyColumns ? 120,
+  codexAppServerPort ? 4500,
+  codexAppServerHostAddress ? "127.0.0.1",
+  networkMode ? "deny",
+  storeOverlaySizeMb ? 4096,
+  tmpfsSize ? "1G",
+  agentBasePath ? ../agents/vm-base.md,
+  agentGuiPath ? ../agents/vm-gui.md,
+  agentHeadlessPath ? ../agents/vm-headless.md,
+  guiSkillPath ? ../skills/vm-gui/SKILL.md,
+}:
 
 let
-  lib = nixpkgs.lib;
+  inherit (nixpkgs) lib;
 
   profiles = lib.unique (builtins.fromJSON profilesJson);
   command = builtins.fromJSON commandJson;
   extraFlakeRefs = builtins.fromJSON extraFlakesJson;
   extraFlakes = map builtins.getFlake extraFlakeRefs;
-  builtinProfileNames = [ "headless" "gui" "codex" "claude" ];
+  builtinProfileNames = [
+    "headless"
+    "gui"
+    "codex"
+    "claude"
+  ];
 
-  externalProfileModules = name:
-    lib.concatMap (flake:
-      lib.optional
-      (flake ? verstakProfiles && builtins.hasAttr name flake.verstakProfiles)
-      flake.verstakProfiles.${name} ++ lib.optional
-      (flake ? nixosModules && builtins.hasAttr name flake.nixosModules)
-      flake.nixosModules.${name}) extraFlakes;
+  externalProfileModules =
+    name:
+    lib.concatMap (
+      flake:
+      lib.optional (
+        flake ? verstakProfiles && builtins.hasAttr name flake.verstakProfiles
+      ) flake.verstakProfiles.${name}
+      ++ lib.optional (
+        flake ? nixosModules && builtins.hasAttr name flake.nixosModules
+      ) flake.nixosModules.${name}
+    ) extraFlakes;
 
-  profileModule = name:
+  profileModule =
+    name:
     if lib.elem name builtinProfileNames then
       [ ]
     else
-      let matches = externalProfileModules name;
-      in if matches != [ ] then
-        [ (builtins.head matches) ]
-      else
-        throw "unknown Verstak profile '${name}'";
+      let
+        matches = externalProfileModules name;
+      in
+      if matches != [ ] then [ (builtins.head matches) ] else throw "unknown Verstak profile '${name}'";
 
   selectedExternalProfileModules = lib.concatMap profileModule profiles;
 
-  adapterModule = { ... }: {
+  adapterModule = _: {
     verstak = {
-      inherit profiles projectName projectMount stateDir;
-      projectRoot = projectRoot;
+      inherit
+        profiles
+        projectName
+        projectMount
+        projectRoot
+        stateDir
+        ;
 
       vm = {
         user = vmUser;
@@ -80,11 +114,17 @@ let
       };
 
       docs = {
-        inherit agentBasePath agentGuiPath agentHeadlessPath guiSkillPath;
+        inherit
+          agentBasePath
+          agentGuiPath
+          agentHeadlessPath
+          guiSkillPath
+          ;
       };
     };
   };
-in lib.nixosSystem {
+in
+lib.nixosSystem {
   inherit system;
   specialArgs = { inherit microvm llmAgents; };
   modules = [
@@ -98,5 +138,6 @@ in lib.nixosSystem {
     ./verstak/profiles/codex.nix
     ./verstak/profiles/claude.nix
     adapterModule
-  ] ++ selectedExternalProfileModules;
+  ]
+  ++ selectedExternalProfileModules;
 }

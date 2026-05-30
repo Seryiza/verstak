@@ -67,23 +67,23 @@ sync_seed_file() {
 
 looks_like_ref() {
   local ref="$1"
-  [[ "$ref" == "." ]] ||
-    [[ "$ref" == /* ]] ||
-    [[ "$ref" == ./* ]] ||
-    [[ "$ref" == ../* ]] ||
-    [[ "$ref" == *:* ]] ||
-    [[ "$ref" == *flake.nix ]]
+  [[ $ref == "." ]] ||
+    [[ $ref == /* ]] ||
+    [[ $ref == ./* ]] ||
+    [[ $ref == ../* ]] ||
+    [[ $ref == *:* ]] ||
+    [[ $ref == *flake.nix ]]
 }
 
 normalize_flake_ref() {
   local ref="$1"
   local abs
 
-  if [[ "$ref" == *flake.nix ]]; then
+  if [[ $ref == *flake.nix ]]; then
     ref="$(@coreutils@/bin/dirname "$ref")"
   fi
 
-  if [[ "$ref" == "." || "$ref" == /* || "$ref" == ./* || "$ref" == ../* ]]; then
+  if [[ $ref == "." || $ref == /* || $ref == ./* || $ref == ../* ]]; then
     abs="$(@coreutils@/bin/realpath "$ref")"
     [ -d "$abs" ] || die "flake path is not a directory: $abs"
     printf 'path:%s\n' "$abs"
@@ -101,16 +101,16 @@ normalize_devshell_ref() {
     return 0
   fi
 
-  if [[ "$ref" == *flake.nix ]]; then
+  if [[ $ref == *flake.nix ]]; then
     ref="$(@coreutils@/bin/dirname "$ref")"
   fi
 
-  if [[ "$ref" == "." || "$ref" == /* || "$ref" == ./* || "$ref" == ../* ]]; then
+  if [[ $ref == "." || $ref == /* || $ref == ./* || $ref == ../* ]]; then
     abs="$(@coreutils@/bin/realpath "$ref")"
     [ -d "$abs" ] || die "devshell path is not a directory: $abs"
     if [ "$abs" = "$project_root" ]; then
       printf '%s\n' "/workspace/project"
-    elif [[ "$abs" == "$project_root/"* ]]; then
+    elif [[ $abs == "$project_root/"* ]]; then
       rel="${abs#"$project_root"/}"
       printf '%s/%s\n' "/workspace/project" "$rel"
     else
@@ -148,117 +148,117 @@ fi
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --)
+  --)
+    shift
+    command=("$@")
+    break
+    ;;
+  -p | --profile)
+    [ "$#" -ge 2 ] || die_usage "$1 requires a profile name"
+    add_profile "$2"
+    shift 2
+    ;;
+  --profile=*)
+    add_profile "${1#*=}"
+    shift
+    ;;
+  -C | --directory)
+    [ "$#" -ge 2 ] || die_usage "$1 requires a path"
+    project_root_input="$2"
+    shift 2
+    ;;
+  --directory=*)
+    project_root_input="${1#*=}"
+    shift
+    ;;
+  -f | --flake)
+    [ "$#" -ge 2 ] || die_usage "$1 requires a flake ref"
+    extra_flakes+=("$(normalize_flake_ref "$2")")
+    shift 2
+    ;;
+  --flake=*)
+    extra_flakes+=("$(normalize_flake_ref "${1#*=}")")
+    shift
+    ;;
+  --devshell)
+    use_devshell=true
+    shift
+    if [ "$#" -gt 0 ] && looks_like_ref "$1"; then
+      devshell_ref_input="$1"
       shift
-      command=("$@")
-      break
-      ;;
-    -p|--profile)
-      [ "$#" -ge 2 ] || die_usage "$1 requires a profile name"
-      add_profile "$2"
-      shift 2
-      ;;
-    --profile=*)
-      add_profile "${1#*=}"
-      shift
-      ;;
-    -C|--directory)
-      [ "$#" -ge 2 ] || die_usage "$1 requires a path"
-      project_root_input="$2"
-      shift 2
-      ;;
-    --directory=*)
-      project_root_input="${1#*=}"
-      shift
-      ;;
-    -f|--flake)
-      [ "$#" -ge 2 ] || die_usage "$1 requires a flake ref"
-      extra_flakes+=("$(normalize_flake_ref "$2")")
-      shift 2
-      ;;
-    --flake=*)
-      extra_flakes+=("$(normalize_flake_ref "${1#*=}")")
-      shift
-      ;;
-    --devshell)
-      use_devshell=true
-      shift
-      if [ "$#" -gt 0 ] && looks_like_ref "$1"; then
-        devshell_ref_input="$1"
-        shift
-      fi
-      ;;
-    --devshell=*)
-      use_devshell=true
-      devshell_ref_input="${1#*=}"
-      shift
-      ;;
-    --no-devshell)
-      use_devshell=false
-      devshell_ref_input=""
-      shift
-      ;;
-    --one-shot|--oneshot)
-      one_shot=true
-      shift
-      ;;
-    --deny-network)
-      network_mode=deny
-      network_mode_explicit=true
-      shift
-      ;;
-    --allow-internet)
-      network_mode=internet
-      network_mode_explicit=true
-      shift
-      ;;
-    --state-dir)
-      [ "$#" -ge 2 ] || die_usage "$1 requires a path"
-      state_dir_input="$2"
-      shift 2
-      ;;
-    --state-dir=*)
-      state_dir_input="${1#*=}"
-      shift
-      ;;
-    --mem)
-      [ "$#" -ge 2 ] || die_usage "$1 requires a megabyte value"
-      mem_mb="$2"
-      shift 2
-      ;;
-    --mem=*)
-      mem_mb="${1#*=}"
-      shift
-      ;;
-    --store-overlay)
-      [ "$#" -ge 2 ] || die_usage "$1 requires a mebibyte value"
-      store_overlay_size_mb="$2"
-      shift 2
-      ;;
-    --store-overlay=*)
-      store_overlay_size_mb="${1#*=}"
-      shift
-      ;;
-    --tmpfs-size)
-      [ "$#" -ge 2 ] || die_usage "$1 requires a size"
-      tmpfs_size="$2"
-      shift 2
-      ;;
-    --tmpfs-size=*)
-      tmpfs_size="${1#*=}"
-      shift
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    -*)
-      die_usage "unknown option: $1"
-      ;;
-    *)
-      command=("$@")
-      break
-      ;;
+    fi
+    ;;
+  --devshell=*)
+    use_devshell=true
+    devshell_ref_input="${1#*=}"
+    shift
+    ;;
+  --no-devshell)
+    use_devshell=false
+    devshell_ref_input=""
+    shift
+    ;;
+  --one-shot | --oneshot)
+    one_shot=true
+    shift
+    ;;
+  --deny-network)
+    network_mode=deny
+    network_mode_explicit=true
+    shift
+    ;;
+  --allow-internet)
+    network_mode=internet
+    network_mode_explicit=true
+    shift
+    ;;
+  --state-dir)
+    [ "$#" -ge 2 ] || die_usage "$1 requires a path"
+    state_dir_input="$2"
+    shift 2
+    ;;
+  --state-dir=*)
+    state_dir_input="${1#*=}"
+    shift
+    ;;
+  --mem)
+    [ "$#" -ge 2 ] || die_usage "$1 requires a megabyte value"
+    mem_mb="$2"
+    shift 2
+    ;;
+  --mem=*)
+    mem_mb="${1#*=}"
+    shift
+    ;;
+  --store-overlay)
+    [ "$#" -ge 2 ] || die_usage "$1 requires a mebibyte value"
+    store_overlay_size_mb="$2"
+    shift 2
+    ;;
+  --store-overlay=*)
+    store_overlay_size_mb="${1#*=}"
+    shift
+    ;;
+  --tmpfs-size)
+    [ "$#" -ge 2 ] || die_usage "$1 requires a size"
+    tmpfs_size="$2"
+    shift 2
+    ;;
+  --tmpfs-size=*)
+    tmpfs_size="${1#*=}"
+    shift
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  -*)
+    die_usage "unknown option: $1"
+    ;;
+  *)
+    command=("$@")
+    break
+    ;;
   esac
 done
 
@@ -272,21 +272,21 @@ project_root="$(@coreutils@/bin/realpath "$project_root_input")"
 project_name="$(@coreutils@/bin/basename "$project_root")"
 
 case "$codex_app_server_port" in
-  ""|*[!0-9]*)
-    die "VERSTAK_APP_SERVER_PORT must be a decimal TCP port"
-    ;;
+"" | *[!0-9]*)
+  die "VERSTAK_APP_SERVER_PORT must be a decimal TCP port"
+  ;;
 esac
 case "$mem_mb" in
-  ""|*[!0-9]*)
-    die "memory must be a decimal number of megabytes"
-    ;;
+"" | *[!0-9]*)
+  die "memory must be a decimal number of megabytes"
+  ;;
 esac
 case "$store_overlay_size_mb" in
-  ""|*[!0-9]*)
-    die "store overlay size must be a decimal number of mebibytes"
-    ;;
+"" | *[!0-9]*)
+  die "store overlay size must be a decimal number of mebibytes"
+  ;;
 esac
-if ! [[ "$tmpfs_size" =~ ^[0-9]+([KkMmGgTtPpEe]?|%)$ ]]; then
+if ! [[ $tmpfs_size =~ ^[0-9]+([KkMmGgTtPpEe]?|%)$ ]]; then
   die "tmpfs size must be a value such as 1024M, 1G, or 50%"
 fi
 if [ -z "$tty_rows" ] || [ -z "$tty_columns" ]; then
@@ -299,14 +299,14 @@ if [ -z "$tty_rows" ] || [ -z "$tty_columns" ]; then
   tty_columns="${tty_columns:-120}"
 fi
 case "$tty_rows" in
-  ""|*[!0-9]*)
-    die "terminal rows must be a decimal number"
-    ;;
+"" | *[!0-9]*)
+  die "terminal rows must be a decimal number"
+  ;;
 esac
 case "$tty_columns" in
-  ""|*[!0-9]*)
-    die "terminal columns must be a decimal number"
-    ;;
+"" | *[!0-9]*)
+  die "terminal columns must be a decimal number"
+  ;;
 esac
 if [ "$tty_rows" -le 0 ]; then
   tty_rows=40
@@ -316,46 +316,46 @@ if [ "$tty_columns" -le 0 ]; then
 fi
 
 case "$one_shot" in
-  true|false)
-    ;;
-  1)
-    one_shot=true
-    ;;
-  0)
-    one_shot=false
-    ;;
-  *)
-    die "VERSTAK_ONE_SHOT must be true or false"
-    ;;
+true | false)
+  ;;
+1)
+  one_shot=true
+  ;;
+0)
+  one_shot=false
+  ;;
+*)
+  die "VERSTAK_ONE_SHOT must be true or false"
+  ;;
 esac
 case "$network_mode" in
-  deny|allowlist|internet)
-    ;;
-  none|off|false|0)
-    network_mode=deny
-    ;;
-  codex|codex-only|openai|openai-codex)
-    network_mode=allowlist
-    ;;
-  allow-internet|internet-only|true|1)
-    network_mode=internet
-    ;;
-  *)
-    die "VERSTAK_NETWORK_MODE must be 'deny', 'allowlist', or 'internet'"
-    ;;
+deny | allowlist | internet)
+  ;;
+none | off | false | 0)
+  network_mode=deny
+  ;;
+codex | codex-only | openai | openai-codex)
+  network_mode=allowlist
+  ;;
+allow-internet | internet-only | true | 1)
+  network_mode=internet
+  ;;
+*)
+  die "VERSTAK_NETWORK_MODE must be 'deny', 'allowlist', or 'internet'"
+  ;;
 esac
 
 if ! has_profile gui && ! has_profile headless; then
   case "${VERSTAK_MODE:-headless}" in
-    gui)
-      add_profile gui
-      ;;
-    headless)
-      add_profile headless
-      ;;
-    *)
-      die "VERSTAK_MODE must be either 'gui' or 'headless'"
-      ;;
+  gui)
+    add_profile gui
+    ;;
+  headless)
+    add_profile headless
+    ;;
+  *)
+    die "VERSTAK_MODE must be either 'gui' or 'headless'"
+    ;;
   esac
 fi
 
@@ -461,6 +461,7 @@ fi
 
 virtiofsd_pids=()
 virtiofsd_sockets=()
+# shellcheck disable=SC2329 # Invoked indirectly through traps.
 cleanup_virtiofsd() {
   local pid
   local socket_path
@@ -498,9 +499,9 @@ if [ -d "$runner/share/microvm/virtiofs" ]; then
       --cache=metadata \
       --allow-mmap \
       --inode-file-handles=never \
-      --translate-uid=squash-guest:0:$(@coreutils@/bin/id -u):65536 \
-      --translate-gid=squash-guest:0:$(@coreutils@/bin/id -g):65536 \
-      >> "$state_dir/virtiofsd.log" 2>&1 &
+      "--translate-uid=squash-guest:0:$(@coreutils@/bin/id -u):65536" \
+      "--translate-gid=squash-guest:0:$(@coreutils@/bin/id -g):65536" \
+      >>"$state_dir/virtiofsd.log" 2>&1 &
     virtiofsd_pids+=("$!")
 
     for _ in {1..100}; do

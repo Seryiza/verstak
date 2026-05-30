@@ -2,8 +2,12 @@
 
 let
   inherit (lib) mkEnableOption mkOption types;
-  pathLike = types.oneOf [ types.path types.str ];
-in {
+  pathLike = types.oneOf [
+    types.path
+    types.str
+  ];
+in
+{
   options.verstak = {
     profiles = mkOption {
       type = types.listOf types.str;
@@ -36,8 +40,7 @@ in {
 
     stateDir = mkOption {
       type = types.str;
-      description =
-        "Host state directory for guest home and writable store overlay.";
+      description = "Host state directory for guest home and writable store overlay.";
     };
 
     vm = {
@@ -87,8 +90,7 @@ in {
         hostAddress = mkOption {
           type = types.str;
           default = "127.0.0.1";
-          description =
-            "Host address used for forwarded Codex app-server access.";
+          description = "Host address used for forwarded Codex app-server access.";
         };
       };
     };
@@ -97,7 +99,11 @@ in {
 
     network = {
       mode = mkOption {
-        type = types.enum [ "deny" "allowlist" "internet" ];
+        type = types.enum [
+          "deny"
+          "allowlist"
+          "internet"
+        ];
         default = "deny";
         description = ''
           Guest network policy. "deny" removes guest network interfaces and
@@ -121,7 +127,10 @@ in {
 
       allowedTCPPorts = mkOption {
         type = types.listOf types.port;
-        default = [ 80 443 ];
+        default = [
+          80
+          443
+        ];
         description = ''
           TCP destination ports allowed to domain-resolved addresses when
           network.mode is "allowlist".
@@ -130,7 +139,10 @@ in {
 
       dnsServers = mkOption {
         type = types.listOf types.str;
-        default = [ "1.1.1.1" "1.0.0.1" ];
+        default = [
+          "1.1.1.1"
+          "1.0.0.1"
+        ];
         description = ''
           Upstream DNS servers used by unrestricted Internet mode and by the
           local resolver that maintains allowlist nftables sets.
@@ -201,7 +213,10 @@ in {
 
     internal = {
       mode = mkOption {
-        type = types.enum [ "headless" "gui" ];
+        type = types.enum [
+          "headless"
+          "gui"
+        ];
         default = if config.verstak.gui.enable then "gui" else "headless";
         internal = true;
         description = "Derived guest mode.";
@@ -209,20 +224,19 @@ in {
 
       vmPrimaryGroup = mkOption {
         type = types.str;
-        default = if config.verstak.vm.group == null then
-          config.verstak.vm.user
-        else
-          config.verstak.vm.group;
+        default =
+          if config.verstak.vm.group == null then config.verstak.vm.user else config.verstak.vm.group;
         internal = true;
         description = "Derived guest primary group.";
       };
 
       vmUserHome = mkOption {
         type = types.str;
-        default = if config.verstak.vm.home == null then
-          "/home/${config.verstak.vm.user}"
-        else
-          config.verstak.vm.home;
+        default =
+          if config.verstak.vm.home == null then
+            "/home/${config.verstak.vm.user}"
+          else
+            config.verstak.vm.home;
         internal = true;
         description = "Derived guest home directory.";
       };

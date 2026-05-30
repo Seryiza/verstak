@@ -1,11 +1,28 @@
-{ config, lib, llmAgents ? null, microvm, pkgs, ... }:
+{
+  config,
+  lib,
+  llmAgents ? null,
+  microvm,
+  pkgs,
+  ...
+}:
 
 let
   cfg = config.verstak;
-  baseTools = import ./tools/base.nix { inherit config lib llmAgents pkgs; };
-in {
-  nixpkgs.overlays = [ microvm.overlay ]
-    ++ lib.optionals (llmAgents != null) [ llmAgents.overlays.default ];
+  baseTools = import ./tools/base.nix {
+    inherit
+      config
+      lib
+      llmAgents
+      pkgs
+      ;
+  };
+in
+{
+  nixpkgs.overlays = [
+    microvm.overlay
+  ]
+  ++ lib.optionals (llmAgents != null) [ llmAgents.overlays.default ];
 
   networking.hostName = "verstak";
   system.stateVersion = cfg.stateVersion;
@@ -33,33 +50,44 @@ in {
         mountPoint = cfg.internal.vmUserHome;
         cache = "metadata";
       }
-    ] ++ lib.optionals cfg.codex.enable [{
-      tag = "codex-auth";
-      proto = "9p";
-      source = "${cfg.stateDir}/codex-auth";
-      mountPoint = "/run/verstak-codex-auth";
-      readOnly = true;
-    }] ++ lib.optionals cfg.claude.enable [{
-      tag = "claude-auth";
-      proto = "9p";
-      source = "${cfg.stateDir}/claude-auth";
-      mountPoint = "/run/verstak-claude-auth";
-      readOnly = true;
-    }] ++ [{
-      tag = "ro-store";
-      proto = "9p";
-      source = "/nix/store";
-      mountPoint = "/nix/.ro-store";
-      readOnly = true;
-      cache = "always";
-    }];
+    ]
+    ++ lib.optionals cfg.codex.enable [
+      {
+        tag = "codex-auth";
+        proto = "9p";
+        source = "${cfg.stateDir}/codex-auth";
+        mountPoint = "/run/verstak-codex-auth";
+        readOnly = true;
+      }
+    ]
+    ++ lib.optionals cfg.claude.enable [
+      {
+        tag = "claude-auth";
+        proto = "9p";
+        source = "${cfg.stateDir}/claude-auth";
+        mountPoint = "/run/verstak-claude-auth";
+        readOnly = true;
+      }
+    ]
+    ++ [
+      {
+        tag = "ro-store";
+        proto = "9p";
+        source = "/nix/store";
+        mountPoint = "/nix/.ro-store";
+        readOnly = true;
+        cache = "always";
+      }
+    ];
 
     writableStoreOverlay = "/nix/.rw-store";
-    volumes = [{
-      image = "${cfg.stateDir}/nix-store-overlay.img";
-      mountPoint = config.microvm.writableStoreOverlay;
-      size = cfg.resources.storeOverlaySizeMb;
-    }];
+    volumes = [
+      {
+        image = "${cfg.stateDir}/nix-store-overlay.img";
+        mountPoint = config.microvm.writableStoreOverlay;
+        size = cfg.resources.storeOverlaySizeMb;
+      }
+    ];
 
     qemu = {
       serialConsole = false;
@@ -81,29 +109,48 @@ in {
     ];
   };
 
-  boot.kernelModules =
-    lib.optionals cfg.gui.enable [ "drm" "uinput" "virtio_gpu" ];
-  boot.tmp.useTmpfs = true;
-  boot.tmp.tmpfsSize = cfg.resources.tmpfsSize;
+  boot = {
+    kernelModules = lib.optionals cfg.gui.enable [
+      "drm"
+      "uinput"
+      "virtio_gpu"
+    ];
+
+    tmp = {
+      useTmpfs = true;
+      inherit (cfg.resources) tmpfsSize;
+    };
+  };
 
   nix = {
     enable = true;
     settings = {
-      experimental-features = [ "nix-command" "flakes" ];
+      experimental-features = [
+        "nix-command"
+        "flakes"
+      ];
       sandbox = true;
     };
   };
 
-  users.groups.${cfg.internal.vmPrimaryGroup}.gid = cfg.vm.gid;
-  users.users.${cfg.vm.user} = {
-    isNormalUser = true;
-    uid = cfg.vm.uid;
-    group = cfg.internal.vmPrimaryGroup;
-    home = cfg.internal.vmUserHome;
-    createHome = false;
-    extraGroups = [ "wheel" ]
-      ++ lib.optionals cfg.gui.enable [ "input" "video" ];
-    password = "";
+  users = {
+    groups.${cfg.internal.vmPrimaryGroup}.gid = cfg.vm.gid;
+
+    users.${cfg.vm.user} = {
+      isNormalUser = true;
+      inherit (cfg.vm) uid;
+      group = cfg.internal.vmPrimaryGroup;
+      home = cfg.internal.vmUserHome;
+      createHome = false;
+      extraGroups = [
+        "wheel"
+      ]
+      ++ lib.optionals cfg.gui.enable [
+        "input"
+        "video"
+      ];
+      password = "";
+    };
   };
 
   security.sudo = {
@@ -111,29 +158,31 @@ in {
     wheelNeedsPassword = false;
   };
 
-  environment.sessionVariables = {
-    EDITOR = lib.mkDefault "nano";
-    GIT_EDITOR = lib.mkDefault "nano";
-    HUMAN_EDITOR = "nano";
-    VERSTAK_MODE = cfg.internal.mode;
-    VERSTAK_NETWORK_MODE = cfg.network.mode;
-    VERSTAK_PROJECT_MOUNT = cfg.projectMount;
-    VISUAL = lib.mkDefault "nano";
-    XDG_CACHE_HOME = lib.mkDefault "/tmp/verstak-cache";
-  } // lib.optionalAttrs cfg.gui.enable {
-    XDG_CURRENT_DESKTOP = "sway";
-    XDG_SESSION_TYPE = "wayland";
-    WLR_RENDERER_ALLOW_SOFTWARE = "1";
+  environment = {
+    sessionVariables = {
+      EDITOR = lib.mkDefault "nano";
+      GIT_EDITOR = lib.mkDefault "nano";
+      HUMAN_EDITOR = "nano";
+      VERSTAK_MODE = cfg.internal.mode;
+      VERSTAK_NETWORK_MODE = cfg.network.mode;
+      VERSTAK_PROJECT_MOUNT = cfg.projectMount;
+      VISUAL = lib.mkDefault "nano";
+      XDG_CACHE_HOME = lib.mkDefault "/tmp/verstak-cache";
+    }
+    // lib.optionalAttrs cfg.gui.enable {
+      XDG_CURRENT_DESKTOP = "sway";
+      XDG_SESSION_TYPE = "wayland";
+      WLR_RENDERER_ALLOW_SOFTWARE = "1";
+    };
+
+    localBinInPath = true;
+    systemPackages = baseTools.packages;
+
+    etc."gitconfig".text = ''
+      [safe]
+        directory = ${cfg.projectMount}
+    '';
   };
-
-  environment.localBinInPath = true;
-
-  environment.systemPackages = baseTools.packages;
-
-  environment.etc."gitconfig".text = ''
-    [safe]
-      directory = ${cfg.projectMount}
-  '';
 
   systemd.tmpfiles.rules = [
     "d ${cfg.internal.vmUserHome} 0755 ${cfg.vm.user} ${cfg.internal.vmPrimaryGroup} -"

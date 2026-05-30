@@ -230,3 +230,30 @@ GUI mode exposes these commands inside the VM:
 - `vm-move-mouse`
 
 Headless mode does not install Sway, greetd, GUI applications, or GUI helper commands.
+
+## Development
+
+Enter the reproducible development shell with:
+
+```sh
+nix develop
+```
+
+Optional automatic activation uses `direnv`/`nix-direnv`:
+
+```sh
+direnv allow
+```
+
+Common development commands are available through `just`:
+
+```sh
+just --list
+just fmt      # nix fmt
+just lint     # deadnix, statix, shellcheck
+just check    # nix flake check -L
+```
+
+`nix flake check` runs formatting, pre-commit hooks, deadnix, statix,
+shellcheck, and profile evaluation checks for headless, GUI, Codex, and Claude
+configurations.
