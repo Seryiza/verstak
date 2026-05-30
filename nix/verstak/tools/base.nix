@@ -27,44 +27,52 @@ let
     else
       cfg.command.argv;
 
-  runCommand = pkgs.writeShellScriptBin "verstak-run-command" ''
-    set -euo pipefail
-    cd ${cfg.projectMount}
-    export HOME=${cfg.internal.vmUserHome}
-    export USER=${cfg.vm.user}
-    export LOGNAME=${cfg.vm.user}
-    export PATH=${basePath}
-    export TERM=''${VERSTAK_TERM:-xterm-256color}
-    export COLUMNS=''${COLUMNS:-${toString cfg.terminal.columns}}
-    export LINES=''${LINES:-${toString cfg.terminal.rows}}
-    ${lib.optionalString (runInitialCommand && (!cfg.command.oneShot) && (!isCodexAppServer)) ''
-      printf '$ %s\n' ${lib.escapeShellArg (lib.escapeShellArgs cfg.command.argv)}
-    ''}
-    ${
-      if cfg.command.useDevshell then
-        ''
-          exec ${pkgs.nix}/bin/nix develop ${lib.escapeShellArg cfg.command.devshellRef} --command ${lib.escapeShellArgs effectiveCommand}
-        ''
-      else
-        ''
-          exec ${lib.escapeShellArgs effectiveCommand}
-        ''
-    }
-  '';
+  runCommand = pkgs.writeShellApplication {
+    name = "verstak-run-command";
+    runtimeInputs = [ pkgs.nix ];
+    text = ''
+      cd ${cfg.projectMount}
+      export HOME=${cfg.internal.vmUserHome}
+      export USER=${cfg.vm.user}
+      export LOGNAME=${cfg.vm.user}
+      export PATH=${basePath}
+      export TERM=''${VERSTAK_TERM:-xterm-256color}
+      export COLUMNS=''${COLUMNS:-${toString cfg.terminal.columns}}
+      export LINES=''${LINES:-${toString cfg.terminal.rows}}
+      ${lib.optionalString (runInitialCommand && (!cfg.command.oneShot) && (!isCodexAppServer)) ''
+        printf '$ %s\n' ${lib.escapeShellArg (lib.escapeShellArgs cfg.command.argv)}
+      ''}
+      ${
+        if cfg.command.useDevshell then
+          ''
+            exec nix develop ${lib.escapeShellArg cfg.command.devshellRef} --command ${lib.escapeShellArgs effectiveCommand}
+          ''
+        else
+          ''
+            exec ${lib.escapeShellArgs effectiveCommand}
+          ''
+      }
+    '';
+  };
 
   runInitialCommand = cfg.command.argv != [ ] && cfg.command.argv != [ "bash" ];
 
-  verstakPoweroff = pkgs.writeShellScriptBin "verstak-poweroff" ''
-    set -euo pipefail
+  verstakPoweroff = pkgs.writeShellApplication {
+    name = "verstak-poweroff";
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.systemd
+    ];
+    text = ''
+      if [ "$(id -u)" -ne 0 ]; then
+        exec /run/wrappers/bin/sudo -n systemctl \
+          --no-wall start poweroff.target --job-mode=replace-irreversibly
+      fi
 
-    if [ "$(${pkgs.coreutils}/bin/id -u)" -ne 0 ]; then
-      exec /run/wrappers/bin/sudo -n ${pkgs.systemd}/bin/systemctl \
+      exec systemctl \
         --no-wall start poweroff.target --job-mode=replace-irreversibly
-    fi
-
-    exec ${pkgs.systemd}/bin/systemctl \
-      --no-wall start poweroff.target --job-mode=replace-irreversibly
-  '';
+    '';
+  };
 
   interactiveCommand = lib.optionalString runInitialCommand ''
     printf '$ %s\n' ${lib.escapeShellArg (lib.escapeShellArgs cfg.command.argv)}
@@ -99,31 +107,37 @@ let
     fi
   '';
 
-  interactiveShell = pkgs.writeShellScriptBin "verstak-shell" ''
-    set -euo pipefail
-    cd ${cfg.projectMount}
-    export HOME=${cfg.internal.vmUserHome}
-    export USER=${cfg.vm.user}
-    export LOGNAME=${cfg.vm.user}
-    export PATH=${basePath}
-    export TERM=''${VERSTAK_TERM:-xterm-256color}
-    export COLUMNS=''${COLUMNS:-${toString cfg.terminal.columns}}
-    export LINES=''${LINES:-${toString cfg.terminal.rows}}
-    ${lib.optionalString (!runInitialCommand) ''
-      printf '\nVerstak headless shell\n'
-      printf 'Project: %s. Power off with: verstak-poweroff\n' ${lib.escapeShellArg cfg.projectMount}
-    ''}
-    ${
-      if cfg.command.useDevshell then
-        ''
-          exec ${pkgs.nix}/bin/nix develop ${lib.escapeShellArg cfg.command.devshellRef} --command ${pkgs.bashInteractive}/bin/bash --rcfile ${interactiveBashRc} -i
-        ''
-      else
-        ''
-          exec ${pkgs.bashInteractive}/bin/bash --rcfile ${interactiveBashRc} -i
-        ''
-    }
-  '';
+  interactiveShell = pkgs.writeShellApplication {
+    name = "verstak-shell";
+    runtimeInputs = [
+      pkgs.bashInteractive
+      pkgs.nix
+    ];
+    text = ''
+      cd ${cfg.projectMount}
+      export HOME=${cfg.internal.vmUserHome}
+      export USER=${cfg.vm.user}
+      export LOGNAME=${cfg.vm.user}
+      export PATH=${basePath}
+      export TERM=''${VERSTAK_TERM:-xterm-256color}
+      export COLUMNS=''${COLUMNS:-${toString cfg.terminal.columns}}
+      export LINES=''${LINES:-${toString cfg.terminal.rows}}
+      ${lib.optionalString (!runInitialCommand) ''
+        printf '\nVerstak headless shell\n'
+        printf 'Project: %s. Power off with: verstak-poweroff\n' ${lib.escapeShellArg cfg.projectMount}
+      ''}
+      ${
+        if cfg.command.useDevshell then
+          ''
+            exec nix develop ${lib.escapeShellArg cfg.command.devshellRef} --command bash --rcfile ${interactiveBashRc} -i
+          ''
+        else
+          ''
+            exec bash --rcfile ${interactiveBashRc} -i
+          ''
+      }
+    '';
+  };
 in
 {
   inherit
