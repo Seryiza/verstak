@@ -1,8 +1,8 @@
 {
   config,
   lib,
-  llmAgents ? null,
   pkgs,
+  ...
 }:
 
 let
@@ -12,10 +12,10 @@ let
   claudeAuthSeedMount = "/run/verstak-claude-auth";
 
   claudePackage =
-    if llmAgents == null then
-      throw "the claude profile requires the llm-agents flake input"
+    if cfg.claude.package == null then
+      throw "the claude profile requires llm-agents or an explicit verstak.claude.package"
     else
-      pkgs.llm-agents.claude-code;
+      cfg.claude.package;
 
   seedClaudeAuth = pkgs.writeShellApplication {
     name = "verstak-seed-claude-auth";

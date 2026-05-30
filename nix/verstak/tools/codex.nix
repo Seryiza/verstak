@@ -1,8 +1,8 @@
 {
   config,
   lib,
-  llmAgents ? null,
   pkgs,
+  ...
 }:
 
 let
@@ -12,7 +12,7 @@ let
   codexAppServerListen = "ws://0.0.0.0:${toString cfg.codex.appServer.port}";
   codexAppServerRemote = "ws://${cfg.codex.appServer.hostAddress}:${toString cfg.codex.appServer.port}";
 
-  codexPackage = if llmAgents == null then pkgs.codex else pkgs.llm-agents.codex;
+  codexPackage = cfg.codex.package;
 
   codexEditor = pkgs.writeShellApplication {
     name = "codex-editor";

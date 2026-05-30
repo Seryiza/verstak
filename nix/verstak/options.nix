@@ -1,4 +1,10 @@
-{ config, lib, ... }:
+{
+  config,
+  lib,
+  llmAgents ? null,
+  pkgs,
+  ...
+}:
 
 let
   inherit (lib) mkEnableOption mkOption types;
@@ -89,6 +95,15 @@ in
     codex = {
       enable = mkEnableOption "Codex CLI integration";
 
+      package = mkOption {
+        type = types.package;
+        default = if llmAgents == null then pkgs.codex else pkgs.llm-agents.codex;
+        defaultText = lib.literalExpression (
+          if llmAgents == null then "pkgs.codex" else "pkgs.llm-agents.codex"
+        );
+        description = "Codex CLI package used by the Codex integration.";
+      };
+
       appServer = {
         port = mkOption {
           type = types.port;
@@ -104,7 +119,20 @@ in
       };
     };
 
-    claude.enable = mkEnableOption "Claude Code CLI integration";
+    claude = {
+      enable = mkEnableOption "Claude Code CLI integration";
+
+      package = mkOption {
+        type = types.nullOr types.package;
+        default = if llmAgents == null then null else pkgs.llm-agents.claude-code;
+        defaultText = lib.literalExpression "pkgs.llm-agents.claude-code";
+        description = ''
+          Claude Code package used by the Claude integration. Defaults to null
+          when the llm-agents flake input is unavailable; set this option when
+          using the Claude profile without llm-agents.
+        '';
+      };
+    };
 
     network = {
       mode = mkOption {
