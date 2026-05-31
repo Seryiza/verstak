@@ -3,11 +3,14 @@ _:
 {
   projectRootFile = "flake.nix";
 
-  programs.nixfmt.enable = true;
+  programs = {
+    nixfmt.enable = true;
+    gofmt.enable = true;
 
-  programs.shfmt = {
-    enable = true;
-    indent_size = 2;
-    simplify = true;
+    shfmt = {
+      enable = true;
+      indent_size = 2;
+      simplify = true;
+    };
   };
 }

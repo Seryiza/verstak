@@ -4,4 +4,4 @@ You are running inside a Verstak MicroVM. The project is mounted at `/workspace/
 
 Treat the MicroVM as the security boundary. Review generated changes before committing them.
 
-Guest networking is disabled unless the host selected an allowlisted profile network or launched Verstak with `--allow-internet`. `verstak codex` defaults to an OpenAI/Codex domain allowlist. When networking is enabled, local/host/private ranges remain blocked by the guest egress policy.
+Guest networking is disabled unless the host selected an allowlisted profile network or launched Verstak with `--allow-internet`. `verstak codex` defaults to an OpenAI/Codex domain allowlist. In allowlist mode, QEMU restricted networking prevents direct guest egress while the host-side Go proxy permits only configured HTTP Host/TLS SNI traffic to allowed domains and rejects blocked resolved addresses. In Internet mode, local/host/private ranges are blocked by the guest egress policy on a best-effort basis.

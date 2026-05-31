@@ -14,10 +14,7 @@ Options:
   --no-devshell            Disable devshell use
   --one-shot, --oneshot    Run command non-interactively and power off when it exits
   --deny-network           Disable all guest networking (default except codex)
-  --allow-internet         Allow guest Internet egress while blocking host/LAN ranges
-  --network-enforcement MODE
-                           Enforce network policy with host netns/nftables or legacy guest firewall (host|guest)
-  --guest-network-firewall Also enable legacy in-guest egress firewall as defense-in-depth
+  --allow-internet         Allow guest Internet egress; host/LAN blocking is best-effort
   --state-dir PATH         Override VM state dir
   --mem MB                 Override memory
   --store-overlay MB       Override writable Nix store overlay size
@@ -144,9 +141,8 @@ use_devshell=false
 devshell_ref_input=""
 one_shot="${VERSTAK_ONE_SHOT:-false}"
 network_mode="${VERSTAK_NETWORK_MODE:-deny}"
-network_enforcement="${VERSTAK_NETWORK_ENFORCEMENT:-host}"
-guest_firewall="${VERSTAK_GUEST_FIREWALL:-false}"
 network_mode_explicit=false
+network_mode_alias=""
 if [ -n "${VERSTAK_NETWORK_MODE+x}" ]; then
   network_mode_explicit=true
 fi
@@ -215,27 +211,6 @@ while [ "$#" -gt 0 ]; do
   --allow-internet)
     network_mode=internet
     network_mode_explicit=true
-    shift
-    ;;
-  --network-enforcement)
-    [ "$#" -ge 2 ] || die_usage "$1 requires host or guest"
-    network_enforcement="$2"
-    shift 2
-    ;;
-  --network-enforcement=*)
-    network_enforcement="${1#*=}"
-    shift
-    ;;
-  --host-network-enforcement)
-    network_enforcement=host
-    shift
-    ;;
-  --guest-network-enforcement)
-    network_enforcement=guest
-    shift
-    ;;
-  --guest-network-firewall)
-    guest_firewall=true
     shift
     ;;
   --state-dir)
@@ -361,6 +336,7 @@ none | off | false | 0)
   network_mode=deny
   ;;
 codex | codex-only | openai | openai-codex)
+  network_mode_alias="$network_mode"
   network_mode=allowlist
   ;;
 allow-internet | internet-only | true | 1)
@@ -370,27 +346,9 @@ allow-internet | internet-only | true | 1)
   die "VERSTAK_NETWORK_MODE must be 'deny', 'allowlist', or 'internet'"
   ;;
 esac
-case "$network_enforcement" in
-host | guest)
-  ;;
-*)
-  die "VERSTAK_NETWORK_ENFORCEMENT must be 'host' or 'guest'"
-  ;;
-esac
-case "$guest_firewall" in
-true | false)
-  ;;
-1)
-  guest_firewall=true
-  ;;
-0)
-  guest_firewall=false
-  ;;
-*)
-  die "VERSTAK_GUEST_FIREWALL must be true or false"
-  ;;
-esac
-
+if [ -n "$network_mode_alias" ] && [ "${command[0]}" != "codex" ]; then
+  die "VERSTAK_NETWORK_MODE=$network_mode_alias is only valid with the codex command; use VERSTAK_NETWORK_MODE=allowlist with a profile/module that provides domains, or run 'verstak codex'"
+fi
 if ! has_profile gui && ! has_profile headless; then
   case "${VERSTAK_MODE:-headless}" in
   gui)
@@ -468,8 +426,6 @@ runner="$(@nix@/bin/nix build --no-link --print-out-paths \
   --arg ttyRows "$tty_rows" \
   --arg ttyColumns "$tty_columns" \
   --argstr networkMode "$network_mode" \
-  --argstr networkEnforcement "$network_enforcement" \
-  --arg guestFirewall "$guest_firewall" \
   --arg storeOverlaySizeMb "$store_overlay_size_mb" \
   --argstr tmpfsSize "$tmpfs_size" \
   --arg codexAppServerPort "$codex_app_server_port" \
@@ -497,13 +453,7 @@ echo "  Memory:   $mem_mb MB"
 echo "  /tmp:     $tmpfs_size tmpfs"
 echo "  Terminal: ${tty_columns}x${tty_rows}"
 echo "  Nix store overlay: $store_overlay_size_mb MiB"
-echo "  Network:  $network_mode ($network_enforcement enforcement)"
-if [ "$network_enforcement" = host ] && [ "$network_mode" != deny ]; then
-  echo "  Host firewall: netns+nftables (requires sudo for setup/cleanup)"
-fi
-if [ "$guest_firewall" = true ]; then
-  echo "  Guest firewall: enabled as defense-in-depth"
-fi
+echo "  Network:  $network_mode"
 if [ "$use_devshell" = true ]; then
   echo "  Devshell: $devshell_ref"
 fi
@@ -514,218 +464,8 @@ if has_profile codex && [ "$one_shot" = false ] && [ "${command[0]}" = codex ] &
   echo "  Host: codex --dangerously-bypass-approvals-and-sandbox --remote ws://$codex_app_server_host_address:$codex_app_server_port"
 fi
 
-host_network_active=false
-host_netns=""
-host_veth=""
-host_nft_nat_table=""
-host_nft_filter_table=""
-
-nft_set() {
-  local first=true
-  printf '{ '
-  for item in "$@"; do
-    if [ "$first" = true ]; then
-      first=false
-    else
-      printf ', '
-    fi
-    printf '%s' "$item"
-  done
-  printf ' }'
-}
-
-sudo_run() {
-  local sudo_bin
-  if [ -x /run/wrappers/bin/sudo ]; then
-    sudo_bin=/run/wrappers/bin/sudo
-  else
-    sudo_bin=sudo
-  fi
-  "$sudo_bin" "$@"
-}
-
-# shellcheck disable=SC2329 # Invoked indirectly through cleanup_all/traps.
-cleanup_host_network() {
-  if [ "$host_network_active" != true ]; then
-    return 0
-  fi
-
-  if [ -n "$host_nft_nat_table" ]; then
-    sudo_run @nftables@/bin/nft delete table ip "$host_nft_nat_table" 2>/dev/null || true
-  fi
-  if [ -n "$host_nft_filter_table" ]; then
-    sudo_run @nftables@/bin/nft delete table inet "$host_nft_filter_table" 2>/dev/null || true
-  fi
-  if [ -n "$host_netns" ]; then
-    sudo_run @iproute2@/bin/ip netns delete "$host_netns" 2>/dev/null || true
-  fi
-  if [ -n "$host_veth" ]; then
-    sudo_run @iproute2@/bin/ip link delete "$host_veth" 2>/dev/null || true
-  fi
-
-  host_network_active=false
-}
-
-populate_host_allowlist() {
-  local domain query server record ip
-  local -a queries
-  local -a allowed_domains
-
-  allowed_domains=()
-  if has_profile codex; then
-    allowed_domains+=(openai.com chatgpt.com oaistatic.com oaiusercontent.com)
-  fi
-
-  if [ "${#allowed_domains[@]}" -eq 0 ]; then
-    die "host-enforced allowlist mode has no known allowed domains; select a profile that contributes domains or use --allow-internet"
-  fi
-
-  server="1.1.1.1"
-  echo "  Allowlist domains: ${allowed_domains[*]}"
-  echo "  Note: host allowlist currently pre-resolves common domain names; CDN-shared IPs and unlisted subdomains remain a limitation."
-
-  for domain in "${allowed_domains[@]}"; do
-    queries=("$domain" "api.$domain" "auth.$domain" "chat.$domain" "cdn.$domain" "files.$domain" "static.$domain")
-    for query in "${queries[@]}"; do
-      while IFS= read -r record; do
-        if [[ $record =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-          ip="$record"
-          sudo_run @iproute2@/bin/ip netns exec "$host_netns" \
-            @nftables@/bin/nft add element inet verstak_egress allowed_ipv4 "{ $ip }" 2>/dev/null || true
-        fi
-      done < <(sudo_run @iproute2@/bin/ip netns exec "$host_netns" \
-        @dnsutils@/bin/dig +time=2 +tries=1 +short A "$query" "@$server" 2>/dev/null || true)
-    done
-  done
-}
-
-setup_host_network() {
-  local hash octet subnet host_ip ns_ip ns_veth dns_set tcp_ports_set
-  local -a blocked_ipv4_ranges blocked_ipv6_ranges dns_servers allowed_tcp_ports
-
-  if [ "$network_mode" = deny ] || [ "$network_enforcement" != host ]; then
-    return 0
-  fi
-
-  hash="$(@coreutils@/bin/printf '%s' "$state_dir" | @coreutils@/bin/sha256sum | @coreutils@/bin/cut -c1-12)"
-  octet=$((16#${hash:0:2}))
-  host_netns="verstak-${hash:0:10}"
-  host_veth="vst${hash:0:6}h"
-  ns_veth="vst${hash:0:6}n"
-  host_nft_nat_table="verstak_${hash:0:10}_nat"
-  host_nft_filter_table="verstak_${hash:0:10}_filter"
-  subnet="10.247.$octet.0/30"
-  host_ip="10.247.$octet.1"
-  ns_ip="10.247.$octet.2"
-
-  dns_servers=(1.1.1.1 1.0.0.1)
-  allowed_tcp_ports=(80 443)
-  blocked_ipv4_ranges=(
-    0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8
-    169.254.0.0/16 172.16.0.0/12 192.0.0.0/8 198.18.0.0/15
-    198.51.100.0/24 203.0.113.0/24 224.0.0.0/4 240.0.0.0/4
-  )
-  blocked_ipv6_ranges=(
-    ::/128 ::1/128 ::ffff:0:0/96 64:ff9b::/96 100::/64 2001::/23
-    2001:db8::/32 2002::/16 fc00::/7 fe80::/10 ff00::/8
-  )
-  dns_set="$(nft_set "${dns_servers[@]}")"
-  tcp_ports_set="$(nft_set "${allowed_tcp_ports[@]}")"
-
-  echo "Setting up host-enforced network namespace: $host_netns"
-
-  sudo_run @nftables@/bin/nft delete table ip "$host_nft_nat_table" 2>/dev/null || true
-  sudo_run @nftables@/bin/nft delete table inet "$host_nft_filter_table" 2>/dev/null || true
-  sudo_run @iproute2@/bin/ip netns delete "$host_netns" 2>/dev/null || true
-  sudo_run @iproute2@/bin/ip link delete "$host_veth" 2>/dev/null || true
-
-  sudo_run @iproute2@/bin/ip netns add "$host_netns"
-  host_network_active=true
-  sudo_run @iproute2@/bin/ip link add "$host_veth" type veth peer name "$ns_veth"
-  sudo_run @iproute2@/bin/ip link set "$ns_veth" netns "$host_netns"
-  sudo_run @iproute2@/bin/ip addr add "$host_ip/30" dev "$host_veth"
-  sudo_run @iproute2@/bin/ip link set "$host_veth" up
-  sudo_run @iproute2@/bin/ip netns exec "$host_netns" @iproute2@/bin/ip addr add "$ns_ip/30" dev "$ns_veth"
-  sudo_run @iproute2@/bin/ip netns exec "$host_netns" @iproute2@/bin/ip link set lo up
-  sudo_run @iproute2@/bin/ip netns exec "$host_netns" @iproute2@/bin/ip link set "$ns_veth" up
-  sudo_run @iproute2@/bin/ip netns exec "$host_netns" @iproute2@/bin/ip route add default via "$host_ip"
-  echo 1 | sudo_run @coreutils@/bin/tee /proc/sys/net/ipv4/ip_forward >/dev/null
-
-  sudo_run @nftables@/bin/nft -f - <<EOF_NFT_HOST
- table ip $host_nft_nat_table {
-   chain postrouting {
-     type nat hook postrouting priority srcnat; policy accept;
-     ip saddr $subnet masquerade
-   }
- }
- table inet $host_nft_filter_table {
-   chain forward {
-     type filter hook forward priority -50; policy accept;
-     iifname "$host_veth" accept
-     oifname "$host_veth" ct state established,related accept
-   }
- }
-EOF_NFT_HOST
-
-  sudo_run @iproute2@/bin/ip netns exec "$host_netns" @nftables@/bin/nft -f - <<EOF_NFT_NS
- table inet verstak_egress {
-   set allowed_ipv4 {
-     type ipv4_addr
-     flags interval
-   }
-
-   chain output {
-     type filter hook output priority 0; policy drop;
-
-     oifname "lo" accept
-     ct state established,related accept
-
-     ip daddr $dns_set udp dport 53 accept
-     ip daddr $dns_set tcp dport 53 accept
-
-     ip daddr $(nft_set "${blocked_ipv4_ranges[@]}") drop
-     ip6 daddr $(nft_set "${blocked_ipv6_ranges[@]}") drop
-
-     $(if [ "$network_mode" = internet ]; then
-    printf '%s\n' 'ip protocol { tcp, udp, icmp } accept'
-    printf '%s\n' 'ip6 nexthdr { tcp, udp, ipv6-icmp } accept'
-  else
-    printf '%s\n' "ip daddr @allowed_ipv4 tcp dport $tcp_ports_set accept"
-  fi)
-   }
- }
-EOF_NFT_NS
-
-  if [ "$network_mode" = allowlist ]; then
-    populate_host_allowlist
-  fi
-}
-
 run_microvm() {
-  local uid gid group_list
-  local -a env_args
-
-  if [ "$network_mode" != deny ] && [ "$network_enforcement" = host ]; then
-    uid="$(@coreutils@/bin/id -u)"
-    gid="$(@coreutils@/bin/id -g)"
-    group_list="$(@coreutils@/bin/id -G | @coreutils@/bin/tr ' ' ',' | @coreutils@/bin/tr -d '\n')"
-    env_args=(
-      "HOME=$HOME"
-      "USER=${USER:-}"
-      "LOGNAME=${LOGNAME:-}"
-      "XDG_CACHE_HOME=$XDG_CACHE_HOME"
-    )
-    [ -n "${DISPLAY:-}" ] && env_args+=("DISPLAY=$DISPLAY")
-    [ -n "${WAYLAND_DISPLAY:-}" ] && env_args+=("WAYLAND_DISPLAY=$WAYLAND_DISPLAY")
-    [ -n "${XAUTHORITY:-}" ] && env_args+=("XAUTHORITY=$XAUTHORITY")
-    [ -n "${XDG_RUNTIME_DIR:-}" ] && env_args+=("XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR")
-
-    sudo_run @iproute2@/bin/ip netns exec "$host_netns" \
-      @utilLinux@/bin/setpriv --reuid "$uid" --regid "$gid" --groups "$group_list" -- \
-      @coreutils@/bin/env "${env_args[@]}" "$runner/bin/microvm-run"
-  else
-    "$runner/bin/microvm-run"
-  fi
+  "$runner/bin/microvm-run"
 }
 
 virtiofsd_pids=()
@@ -746,14 +486,11 @@ cleanup_virtiofsd() {
 # shellcheck disable=SC2329 # Invoked indirectly through traps.
 cleanup_all() {
   cleanup_virtiofsd
-  cleanup_host_network
 }
 
 trap cleanup_all EXIT
 trap 'trap - INT; cleanup_all; kill -INT "$$"' INT
 trap 'trap - TERM; cleanup_all; kill -TERM "$$"' TERM
-
-setup_host_network
 
 if [ -d "$runner/share/microvm/virtiofs" ]; then
   # nix run does not use microvm.nix's host systemd units, so the launcher

@@ -154,18 +154,6 @@ in
     };
   };
 
-  warnings =
-    lib.optionals
-      (cfg.network.mode != "deny" && cfg.network.enforcement == "guest" && cfg.vm.passwordlessSudo)
-      [
-        ''
-          Guest network enforcement is selected while passwordless sudo is enabled.
-          Guest root can disable guest nftables/dnsmasq, so this network policy is
-          best-effort. Use verstak.network.enforcement = "host" for stronger
-          isolation.
-        ''
-      ];
-
   security.sudo = {
     enable = cfg.vm.passwordlessSudo;
     wheelNeedsPassword = false;

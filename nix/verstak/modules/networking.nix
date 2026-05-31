@@ -1,19 +1,50 @@
-{ config, lib, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
   cfg = config.verstak;
   networkEnabled = cfg.network.mode != "deny";
   internetNetwork = cfg.network.mode == "internet";
   allowlistNetwork = cfg.network.mode == "allowlist";
-  hostEnforcement = cfg.network.enforcement == "host";
-  guestPolicyEnabled = networkEnabled && (!hostEnforcement || cfg.network.guestFirewall.enable);
+  rootlessAllowlist = allowlistNetwork;
+  guestPolicyEnabled = internetNetwork;
   nftSet = ranges: "{ ${lib.concatStringsSep ", " ranges} }";
-  allowedDomains = lib.unique cfg.network.allowedDomains;
+  normalizeAllowlistDomain =
+    domain:
+    let
+      trimmed = lib.trim domain;
+      withoutPort =
+        let
+          parts = lib.splitString ":" trimmed;
+        in
+        if builtins.length parts == 2 && builtins.match "[0-9]+" (builtins.elemAt parts 1) != null then
+          builtins.elemAt parts 0
+        else
+          trimmed;
+    in
+    lib.toLower (lib.removeSuffix "." (lib.trim withoutPort));
+  allowedDomains = lib.unique (
+    lib.filter (domain: domain != "") (map normalizeAllowlistDomain cfg.network.allowedDomains)
+  );
   allowedTcpPorts = lib.unique cfg.network.allowedTCPPorts;
-  allowedTcpPortsSet = nftSet (map toString allowedTcpPorts);
-  allowedDomainNftSets = map (
-    domain: "/${domain}/4#inet#verstak_egress#allowed_ipv4,6#inet#verstak_egress#allowed_ipv6"
-  ) allowedDomains;
+  allowlistGuestAddress = "10.0.2.100";
+  allowlistDnsAddresses = map (domain: "/${domain}/${allowlistGuestAddress}") allowedDomains;
+  allowlistProxyPolicy = {
+    inherit allowedDomains blockedIPv4Ranges blockedIPv6Ranges;
+    allowedTCPPorts = allowedTcpPorts;
+  };
+  allowlistProxyPolicyFile = pkgs.writeText "verstak-allowlist-proxy-policy.json" (
+    builtins.toJSON allowlistProxyPolicy
+  );
+  allowlistProxy = pkgs.callPackage ../allowlist-proxy { };
+  allowlistGuestFwds = map (
+    port:
+    "guestfwd=tcp:${allowlistGuestAddress}:${toString port}-cmd:${allowlistProxy}/bin/verstak-allowlist-proxy ${allowlistProxyPolicyFile} ${toString port}"
+  ) allowedTcpPorts;
   blockedIPv4Ranges = [
     "0.0.0.0/8"
     "10.0.0.0/8"
@@ -21,7 +52,10 @@ let
     "127.0.0.0/8"
     "169.254.0.0/16"
     "172.16.0.0/12"
-    "192.0.0.0/8"
+    "192.0.0.0/24"
+    "192.0.2.0/24"
+    "192.88.99.0/24"
+    "192.168.0.0/16"
     "198.18.0.0/15"
     "198.51.100.0/24"
     "203.0.113.0/24"
@@ -41,6 +75,9 @@ let
     "fe80::/10"
     "ff00::/8"
   ];
+  networkPolicy = allowlistProxyPolicy // {
+    inherit (cfg.network) mode dnsServers;
+  };
 in
 {
   assertions = [
@@ -60,7 +97,7 @@ in
       '';
     }
     {
-      assertion = !networkEnabled || cfg.network.dnsServers != [ ];
+      assertion = !internetNetwork || cfg.network.dnsServers != [ ];
       message = ''
         verstak.network.mode = "${cfg.network.mode}" requires at least one
         verstak.network.dnsServers entry.
@@ -68,25 +105,18 @@ in
     }
   ];
 
-  warnings =
-    lib.optionals (networkEnabled && hostEnforcement && cfg.network.guestFirewall.enable) [
-      ''
-        verstak.network.guestFirewall.enable is enabled with host enforcement.
-        Guest firewall rules are defense-in-depth only; host netns nftables is
-        the authoritative network policy.
-      ''
-    ]
-    ++ lib.optionals (networkEnabled && !hostEnforcement) [
-      ''
-        verstak.network.enforcement = "guest" is best-effort only because guest
-        root can alter guest nftables/dnsmasq. Use "host" for stronger network
-        isolation.
-      ''
-    ];
+  warnings = lib.optionals internetNetwork [
+    ''
+      verstak.network.mode = "internet" uses an in-guest firewall to block
+      host/LAN/private ranges. This block is best-effort because guest root can
+      alter guest nftables. Allowlist mode is stricter because QEMU restricted
+      user networking prevents direct guest egress.
+    ''
+  ];
 
   microvm = {
     interfaces = lib.mkForce (
-      lib.optionals networkEnabled [
+      lib.optionals (networkEnabled && !rootlessAllowlist) [
         {
           type = "user";
           id = "usernet";
@@ -94,6 +124,18 @@ in
         }
       ]
     );
+
+    qemu.extraArgs = lib.mkIf rootlessAllowlist [
+      # QEMU guestfwd uses a host-side command for each proxied connection.
+      # Keep QEMU's seccomp sandbox enabled but explicitly allow spawning that
+      # proxy command.
+      "-sandbox"
+      "on,spawn=allow"
+      "-netdev"
+      "user,id=usernet,restrict=on,${lib.concatStringsSep "," allowlistGuestFwds}"
+      "-device"
+      "virtio-net-device,netdev=usernet,mac=02:00:00:00:00:01"
+    ];
 
     forwardPorts = lib.mkForce (
       lib.optionals (internetNetwork && cfg.codex.enable) [
@@ -111,7 +153,7 @@ in
     useDHCP = lib.mkDefault networkEnabled;
     enableIPv6 = lib.mkIf networkEnabled false;
     nameservers = lib.mkIf networkEnabled (
-      if guestPolicyEnabled && allowlistNetwork then [ "127.0.0.1" ] else cfg.network.dnsServers
+      if allowlistNetwork then [ "127.0.0.1" ] else cfg.network.dnsServers
     );
     dhcpcd.extraConfig = lib.mkIf networkEnabled "nohook resolv.conf";
 
@@ -125,18 +167,6 @@ in
       tables.verstak_egress = {
         family = "inet";
         content = ''
-          ${lib.optionalString allowlistNetwork ''
-            set allowed_ipv4 {
-              type ipv4_addr
-              flags interval
-            }
-
-            set allowed_ipv6 {
-              type ipv6_addr
-              flags interval
-            }
-          ''}
-
           chain output {
             type filter hook output priority 0; policy drop;
 
@@ -151,43 +181,26 @@ in
             ip daddr ${nftSet blockedIPv4Ranges} drop
             ip6 daddr ${nftSet blockedIPv6Ranges} drop
 
-            ${lib.optionalString allowlistNetwork ''
-              # Let the local dnsmasq resolver populate the domain allowlist nft sets.
-              ip daddr ${nftSet cfg.network.dnsServers} udp dport 53 accept
-              ip daddr ${nftSet cfg.network.dnsServers} tcp dport 53 accept
-
-              # Permit configured TCP ports only to addresses resolved from allowed domains.
-              ip daddr @allowed_ipv4 tcp dport ${allowedTcpPortsSet} accept
-              ip6 daddr @allowed_ipv6 tcp dport ${allowedTcpPortsSet} accept
-            ''}
-
-            ${lib.optionalString internetNetwork ''
-              ip protocol { tcp, udp, icmp } accept
-              ip6 nexthdr { tcp, udp, ipv6-icmp } accept
-            ''}
+            ip protocol { tcp, udp, icmp } accept
+            ip6 nexthdr { tcp, udp, ipv6-icmp } accept
           }
         '';
       };
     };
   };
 
-  services.dnsmasq = lib.mkIf (guestPolicyEnabled && allowlistNetwork) {
+  system.build.verstakNetworkPolicy = pkgs.writeText "verstak-network-policy.json" (
+    builtins.toJSON networkPolicy
+  );
+
+  services.dnsmasq = lib.mkIf allowlistNetwork {
     enable = true;
     settings = {
       "bind-interfaces" = true;
       "cache-size" = 1000;
       "listen-address" = "127.0.0.1";
       "no-resolv" = true;
-      nftset = allowedDomainNftSets;
-      server = cfg.network.dnsServers;
-    };
-  };
-
-  systemd.services.dnsmasq = lib.mkIf (guestPolicyEnabled && allowlistNetwork) {
-    after = [ "nftables.service" ];
-    wants = [ "nftables.service" ];
-    serviceConfig = {
-      AmbientCapabilities = [ "CAP_NET_ADMIN" ];
+      address = allowlistDnsAddresses;
     };
   };
 }

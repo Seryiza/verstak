@@ -94,9 +94,9 @@ in
         default = true;
         description = ''
           Whether the guest user can run sudo without a password. This is
-          convenient for agent workflows. It does not weaken host-enforced
-          network policy, but it makes guest-enforced firewall policy
-          best-effort because guest root can alter nftables/dnsmasq.
+          convenient for agent workflows. Network modes that rely on guest
+          firewall rules, such as Internet mode's host/private range blocking,
+          are best-effort because guest root can alter nftables.
         '';
       };
     };
@@ -155,11 +155,11 @@ in
         default = "deny";
         description = ''
           Guest network policy. "deny" removes guest network interfaces and
-          forwarded ports. "allowlist" enables QEMU user networking with
-          egress restricted to configured domain allowlists. "internet"
-          enables QEMU user networking with an egress firewall that blocks
-          host, private, link-local, multicast, and other non-Internet
-          destination ranges.
+          forwarded ports. "allowlist" enables rootless QEMU restricted user
+          networking with a host-side domain allowlist proxy. "internet"
+          enables QEMU user networking with an in-guest egress firewall that
+          best-effort blocks host, private, link-local, multicast, and other
+          non-Internet destination ranges.
         '';
       };
 
@@ -168,8 +168,11 @@ in
         default = [ ];
         description = ''
           Domain suffixes allowed when network.mode is "allowlist". Profiles
-          can extend this list; DNS answers for these domains populate nftables
-          sets used by the egress firewall.
+          can extend this list; allowlist mode maps these domains to a
+          restricted QEMU guest-forward endpoint and the host-side Go proxy
+          permits only matching HTTP Host/TLS SNI names. The proxy resolves
+          matching hosts outside the guest and rejects blocked/private/reserved
+          target addresses before connecting.
         '';
       };
 
@@ -180,8 +183,10 @@ in
           443
         ];
         description = ''
-          TCP destination ports allowed to domain-resolved addresses when
-          network.mode is "allowlist".
+          TCP destination ports exposed through the allowlist proxy when
+          network.mode is "allowlist". Each configured port accepts HTTP
+          requests with an allowed Host header or TLS connections with an
+          allowed SNI name; protocols without HTTP Host or TLS SNI are denied.
         '';
       };
 
@@ -192,33 +197,7 @@ in
           "1.0.0.1"
         ];
         description = ''
-          Upstream DNS servers used by unrestricted Internet mode, host-side
-          allowlist resolution, and guest-side allowlist DNS when legacy guest
-          enforcement is selected.
-        '';
-      };
-
-      enforcement = mkOption {
-        type = types.enum [
-          "host"
-          "guest"
-        ];
-        default = "host";
-        description = ''
-          Where network egress policy is enforced. "host" runs the VM process
-          inside a launcher-created host network namespace with host-controlled
-          nftables rules. "guest" keeps the legacy in-guest nftables/dnsmasq
-          policy, which is best-effort because guest root can change it.
-        '';
-      };
-
-      guestFirewall.enable = mkOption {
-        type = types.bool;
-        default = false;
-        description = ''
-          Enable the legacy guest-side egress nftables/dnsmasq policy as
-          defense-in-depth. This is automatically used when
-          verstak.network.enforcement is "guest".
+          Upstream DNS servers used by unrestricted Internet mode.
         '';
       };
     };

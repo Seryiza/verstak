@@ -72,10 +72,7 @@
           replacements = {
             inherit (pkgs)
               coreutils
-              dnsutils
-              iproute2
               jq
-              nftables
               nix
               virtiofsd
               ;
@@ -88,6 +85,13 @@
           }
           // docs;
         };
+
+      mkAllowlistProxy =
+        system:
+        let
+          pkgs = mkPkgs system;
+        in
+        pkgs.callPackage ./nix/verstak/allowlist-proxy { };
 
       treefmtEval = forAllSystems (system: treefmt-nix.lib.evalModule (mkPkgs system) ./treefmt.nix);
 
@@ -105,10 +109,73 @@
             // docs
             // args
           );
-          drvPath = builtins.unsafeDiscardStringContext vm.config.microvm.declaredRunner.drvPath;
+          runnerDrvPath = builtins.unsafeDiscardStringContext vm.config.microvm.declaredRunner.drvPath;
+          networkPolicyDrvPath = builtins.unsafeDiscardStringContext vm.config.system.build.verstakNetworkPolicy.drvPath;
         in
         pkgs.writeText "verstak-${name}-eval" ''
-          ${drvPath}
+          ${runnerDrvPath}
+          ${networkPolicyDrvPath}
+        '';
+
+      mkPolicySemanticCheck =
+        system: pkgs: name: args: script:
+        let
+          vm = mkVerstakSystem (
+            {
+              inherit nixpkgs microvm system;
+              llmAgents = llm-agents;
+              projectRoot = toString self;
+              projectName = "verstak-${name}";
+              stateDir = "/tmp/verstak-${name}";
+            }
+            // docs
+            // args
+          );
+          networkPolicy = vm.config.system.build.verstakNetworkPolicy;
+        in
+        pkgs.runCommand "verstak-${name}-policy" { nativeBuildInputs = [ pkgs.jq ]; } ''
+          cp ${networkPolicy} policy.json
+          ${script}
+          touch "$out"
+        '';
+
+      mkCustomPolicySemanticCheck =
+        system: pkgs: name: extraModule: script:
+        let
+          vm = nixpkgs.lib.nixosSystem {
+            inherit system;
+            specialArgs = {
+              inherit microvm;
+              llmAgents = llm-agents;
+            };
+            modules = [
+              microvm.nixosModules.microvm
+              ./nix/verstak/options.nix
+              ./nix/verstak/core.nix
+              ./nix/verstak/modules/networking.nix
+              ./nix/verstak/modules/headless-runner.nix
+              ./nix/verstak/profiles/headless.nix
+              ./nix/verstak/profiles/gui.nix
+              ./nix/verstak/profiles/codex.nix
+              ./nix/verstak/profiles/claude.nix
+              (_: {
+                verstak = {
+                  projectRoot = toString self;
+                  projectName = "verstak-${name}";
+                  stateDir = "/tmp/verstak-${name}";
+                  mode = "headless";
+                  gui.enable = false;
+                };
+              })
+              extraModule
+            ];
+          };
+          networkPolicy = vm.config.system.build.verstakNetworkPolicy;
+        in
+        pkgs.runCommand "verstak-${name}-policy" { nativeBuildInputs = [ pkgs.jq ]; } ''
+          cp ${networkPolicy} policy.json
+          ${script}
+          touch "$out"
         '';
 
       mkLintCheck =
@@ -116,6 +183,21 @@
         pkgs.runCommand "verstak-${name}" { inherit nativeBuildInputs; } ''
           cd ${self.outPath}
           ${command}
+          touch "$out"
+        '';
+
+      mkLauncherAliasCheck =
+        system: pkgs:
+        let
+          launcher = mkLauncher system;
+        in
+        pkgs.runCommand "verstak-openai-alias-rejects-noncodex" { } ''
+          set +e
+          VERSTAK_NETWORK_MODE=openai ${launcher} bash >stdout.log 2>stderr.log
+          status=$?
+          set -e
+          test "$status" -ne 0
+          grep -q "VERSTAK_NETWORK_MODE=openai is only valid with the codex command" stderr.log
           touch "$out"
         '';
     in
@@ -147,6 +229,7 @@
       packages = forAllSystems (system: {
         default = mkLauncher system;
         verstak = mkLauncher system;
+        allowlist-proxy = mkAllowlistProxy system;
       });
 
       devShells = forAllSystems (
@@ -177,9 +260,14 @@
         let
           pkgs = mkPkgs system;
           evalCheck = mkProfileEvalCheck system pkgs;
+          policyCheck = mkPolicySemanticCheck system pkgs;
+          customPolicyCheck = mkCustomPolicySemanticCheck system pkgs;
+          launcherAliasCheck = mkLauncherAliasCheck system pkgs;
         in
         {
           formatting = treefmtEval.${system}.config.build.check self;
+
+          allowlist-proxy = mkAllowlistProxy system;
 
           deadnix = mkLintCheck pkgs "deadnix" [ pkgs.deadnix ] ''
             deadnix --fail .
@@ -193,6 +281,8 @@
             name = "verstak-launcher";
             src = ./nix/verstak-launcher.sh;
           };
+
+          launcher-openai-alias-rejects-noncodex = launcherAliasCheck;
 
           pre-commit = git-hooks.lib.${system}.run {
             src = self.outPath;
@@ -233,6 +323,40 @@
             networkMode = "allowlist";
           };
 
+          eval-codex-allowlist-policy =
+            policyCheck "codex-allowlist"
+              {
+                profilesJson = builtins.toJSON [
+                  "headless"
+                  "codex"
+                ];
+                commandJson = builtins.toJSON [ "codex" ];
+                networkMode = "allowlist";
+              }
+              ''
+                jq -e '.blockedIPv4Ranges | index("192.0.0.0/8") | not' policy.json
+                jq -e '.blockedIPv4Ranges | index("192.0.0.0/24")' policy.json
+                jq -e '.blockedIPv4Ranges | index("192.0.2.0/24")' policy.json
+                jq -e '.blockedIPv4Ranges | index("192.88.99.0/24")' policy.json
+                jq -e '.blockedIPv4Ranges | index("192.168.0.0/16")' policy.json
+                jq -e '.allowedDomains | index("openai.com")' policy.json
+              '';
+
+          eval-allowlist-domain-normalization =
+            customPolicyCheck "allowlist-domain-normalization"
+              (_: {
+                verstak.network = {
+                  mode = "allowlist";
+                  allowedDomains = [
+                    " API.OpenAI.Com. "
+                    "chatgpt.com:443"
+                  ];
+                };
+              })
+              ''
+                jq -e '.allowedDomains == ["api.openai.com", "chatgpt.com"]' policy.json
+              '';
+
           eval-codex-internet = evalCheck "codex-internet" {
             profilesJson = builtins.toJSON [
               "headless"
@@ -240,27 +364,6 @@
             ];
             commandJson = builtins.toJSON [ "codex" ];
             networkMode = "internet";
-          };
-
-          eval-codex-guest-enforcement = evalCheck "codex-guest-enforcement" {
-            profilesJson = builtins.toJSON [
-              "headless"
-              "codex"
-            ];
-            commandJson = builtins.toJSON [ "codex" ];
-            networkMode = "allowlist";
-            networkEnforcement = "guest";
-          };
-
-          eval-codex-host-guest-firewall = evalCheck "codex-host-guest-firewall" {
-            profilesJson = builtins.toJSON [
-              "headless"
-              "codex"
-            ];
-            commandJson = builtins.toJSON [ "codex" ];
-            networkMode = "allowlist";
-            networkEnforcement = "host";
-            guestFirewall = true;
           };
 
           eval-claude = evalCheck "claude" {

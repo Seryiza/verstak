@@ -6,6 +6,7 @@
   pkgs.deadnix
   pkgs.fd
   pkgs.git
+  pkgs.go
   pkgs.jq
   pkgs.just
   pkgs.nil
