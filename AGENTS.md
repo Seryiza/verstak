@@ -10,10 +10,13 @@ Useful commands:
 - `nix run . -- claude`
 - `nix run . -- --allow-internet -p gui codex`
 - `nix run . -- --one-shot ls -la`
+- `nix build .#host-program-proxy`
+- `nix build .#checks.$(nix eval --raw --impure --expr builtins.currentSystem).host-program-proxy`
+- `nix run . -- --allow-host-programs git --one-shot git status`
 
 The VM mounts the selected project at `/workspace/project`. Codex state lives at `/home/steve/.codex`; Claude state lives at `/home/steve/.claude`.
 
-Networking is denied by default. `verstak codex` defaults to rootless allowlisted OpenAI/Codex domain egress through QEMU restricted user networking and a host-side Go HTTP/TLS allowlist proxy. In allowlist mode, QEMU `restrict=on` prevents direct guest egress; the proxy permits only configured ports with an allowed HTTP Host or TLS SNI name and rejects blocked/private/reserved resolved target addresses before connecting. Use `--deny-network` to disable networking or `--allow-internet`/`VERSTAK_NETWORK_MODE=internet` for general Internet egress. General Internet mode uses in-guest nftables for best-effort host/local/private range blocking. Codex is the only built-in profile with app-server forwarding, and forwarding is enabled only in Internet mode. The default app server port is `4500`. Override launcher behavior with:
+Networking is denied by default. `verstak codex` defaults to rootless allowlisted OpenAI/Codex domain egress through QEMU restricted user networking and a host-side Go HTTP/TLS allowlist proxy. In allowlist mode, QEMU `restrict=on` prevents direct guest egress; the proxy permits only configured ports with an allowed HTTP Host or TLS SNI name and rejects blocked/private/reserved resolved target addresses before connecting. Use `--deny-network` to disable networking or `--allow-internet`/`VERSTAK_NETWORK_MODE=internet` for general Internet egress. General Internet mode uses in-guest nftables for best-effort host/local/private range blocking. Codex is the only built-in profile with app-server forwarding, and forwarding is enabled only in Internet mode. The default app server port is `4500`. Host-program delegation is denied by default. When `--allow-host-programs` or `verstak.hostPrograms` is configured, allowed host PATH tools are exposed in the guest through `${HOME}/.local/bin` stubs that call a guest client and QEMU `guestfwd` host proxy. Enforcement stays host-side: policy uses `allow`/`forbid` rules with exact `argvPrefix` token matching, forbid wins, cwd must map under `/workspace/project`, and audit logs live under the host state dir without command transcripts. Override launcher behavior with:
 
 - `VERSTAK_STATE_DIR`
 - `VERSTAK_APP_SERVER_PORT`

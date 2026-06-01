@@ -15,6 +15,10 @@ Options:
   --one-shot, --oneshot    Run command non-interactively and power off when it exits
   --deny-network           Disable all guest networking (default except codex)
   --allow-internet         Allow guest Internet egress; host/LAN blocking is best-effort
+  --allow-host-programs NAMES
+                            Comma-separated host PATH program names to proxy into the VM
+  --host-programs-policy PATH
+                            JSON host-program policy with allow/forbid rules
   --state-dir PATH         Override VM state dir
   --mem MB                 Override memory
   --store-overlay MB       Override writable Nix store overlay size
@@ -125,9 +129,47 @@ json_array() {
   @jq@/bin/jq -cn '$ARGS.positional' --args -- "$@"
 }
 
+trim_space() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s\n' "$value"
+}
+
+add_host_programs_csv() {
+  local csv="$1"
+  local raw
+  local program
+  local -a host_program_items
+  [ -n "$csv" ] || die_usage "host program names cannot be empty"
+  IFS=',' read -r -a host_program_items <<<"$csv"
+  for raw in "${host_program_items[@]}"; do
+    program="$(trim_space "$raw")"
+    [ -n "$program" ] || die_usage "host program names cannot be empty"
+    [[ $program != "." && $program != ".." ]] || die_usage "host program name must be a simple PATH name: $program"
+    [[ $program =~ ^[A-Za-z0-9._+-]+$ ]] || die_usage "host program name must be a simple PATH name: $program"
+    host_programs+=("$program")
+  done
+}
+
+load_host_programs_policy() {
+  local policy_path="$1"
+  [ -f "$policy_path" ] || die "host-program policy file does not exist: $policy_path"
+  @jq@/bin/jq -e '
+    type == "object"
+    and ((keys - ["allow", "forbid"]) | length == 0)
+    and ((.allow // []) | type == "array")
+    and ((.forbid // []) | type == "array")
+  ' "$policy_path" >/dev/null || die "host-program policy must be a JSON object with only allow/forbid arrays: $policy_path"
+  @jq@/bin/jq -c '{ allow: (.allow // []), forbid: (.forbid // []) }' "$policy_path"
+}
+
 profiles=()
 extra_flakes=()
 command=()
+host_programs=()
+host_programs_policy_input=""
+host_programs_policy_json='{"allow":[],"forbid":[]}'
 project_root_input="$PWD"
 state_dir_input="${VERSTAK_STATE_DIR:-}"
 mem_mb="${VERSTAK_MEM_MB:-8192}"
@@ -211,6 +253,24 @@ while [ "$#" -gt 0 ]; do
   --allow-internet)
     network_mode=internet
     network_mode_explicit=true
+    shift
+    ;;
+  --allow-host-programs)
+    [ "$#" -ge 2 ] || die_usage "$1 requires a comma-separated program list"
+    add_host_programs_csv "$2"
+    shift 2
+    ;;
+  --allow-host-programs=*)
+    add_host_programs_csv "${1#*=}"
+    shift
+    ;;
+  --host-programs-policy)
+    [ "$#" -ge 2 ] || die_usage "$1 requires a JSON policy path"
+    host_programs_policy_input="$2"
+    shift 2
+    ;;
+  --host-programs-policy=*)
+    host_programs_policy_input="${1#*=}"
     shift
     ;;
   --state-dir)
@@ -401,6 +461,10 @@ if has_profile claude; then
   sync_seed_file "$HOME/.claude.json" "$state_dir/claude-auth/.claude.json"
 fi
 
+if [ -n "$host_programs_policy_input" ]; then
+  host_programs_policy_json="$(load_host_programs_policy "$host_programs_policy_input")"
+fi
+host_programs_json="$(json_array "${host_programs[@]}")"
 profiles_json="$(json_array "${profiles[@]}")"
 command_json="$(json_array "${command[@]}")"
 extra_flakes_json="$(json_array "${extra_flakes[@]}")"
@@ -426,6 +490,8 @@ runner="$(@nix@/bin/nix build --no-link --print-out-paths \
   --arg ttyRows "$tty_rows" \
   --arg ttyColumns "$tty_columns" \
   --argstr networkMode "$network_mode" \
+  --argstr hostProgramsJson "$host_programs_json" \
+  --argstr hostProgramsPolicyJson "$host_programs_policy_json" \
   --arg storeOverlaySizeMb "$store_overlay_size_mb" \
   --argstr tmpfsSize "$tmpfs_size" \
   --arg codexAppServerPort "$codex_app_server_port" \
@@ -454,6 +520,11 @@ echo "  /tmp:     $tmpfs_size tmpfs"
 echo "  Terminal: ${tty_columns}x${tty_rows}"
 echo "  Nix store overlay: $store_overlay_size_mb MiB"
 echo "  Network:  $network_mode"
+if [ "${#host_programs[@]}" -gt 0 ] || [ -n "$host_programs_policy_input" ]; then
+  host_programs_display=""
+  printf -v host_programs_display '%s ' "${host_programs[@]}"
+  echo "  Host programs: ${host_programs_display% }${host_programs_policy_input:+ policy=$host_programs_policy_input}"
+fi
 if [ "$use_devshell" = true ]; then
   echo "  Devshell: $devshell_ref"
 fi

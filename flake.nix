@@ -93,6 +93,13 @@
         in
         pkgs.callPackage ./nix/verstak/allowlist-proxy { };
 
+      mkHostProgramProxy =
+        system:
+        let
+          pkgs = mkPkgs system;
+        in
+        pkgs.callPackage ./nix/verstak/host-program-proxy { };
+
       treefmtEval = forAllSystems (system: treefmt-nix.lib.evalModule (mkPkgs system) ./treefmt.nix);
 
       mkProfileEvalCheck =
@@ -139,6 +146,28 @@
           touch "$out"
         '';
 
+      mkHostProgramPolicySemanticCheck =
+        system: pkgs: name: args: script:
+        let
+          vm = mkVerstakSystem (
+            {
+              inherit nixpkgs microvm system;
+              llmAgents = llm-agents;
+              projectRoot = toString self;
+              projectName = "verstak-${name}";
+              stateDir = "/tmp/verstak-${name}";
+            }
+            // docs
+            // args
+          );
+          hostProgramPolicy = vm.config.system.build.verstakHostProgramPolicy;
+        in
+        pkgs.runCommand "verstak-${name}-host-program-policy" { nativeBuildInputs = [ pkgs.jq ]; } ''
+          cp ${hostProgramPolicy} policy.json
+          ${script}
+          touch "$out"
+        '';
+
       mkCustomPolicySemanticCheck =
         system: pkgs: name: extraModule: script:
         let
@@ -153,6 +182,7 @@
               ./nix/verstak/options.nix
               ./nix/verstak/core.nix
               ./nix/verstak/modules/networking.nix
+              ./nix/verstak/modules/host-programs.nix
               ./nix/verstak/modules/headless-runner.nix
               ./nix/verstak/profiles/headless.nix
               ./nix/verstak/profiles/gui.nix
@@ -200,6 +230,37 @@
           grep -q "VERSTAK_NETWORK_MODE=openai is only valid with the codex command" stderr.log
           touch "$out"
         '';
+
+      mkLauncherHostProgramsHelpCheck =
+        system: pkgs:
+        let
+          launcher = mkLauncher system;
+        in
+        pkgs.runCommand "verstak-host-programs-help" { } ''
+          ${launcher} --help >stdout.log 2>stderr.log
+          grep -q -- "--allow-host-programs" stdout.log
+          grep -q -- "--host-programs-policy" stdout.log
+          touch "$out"
+        '';
+
+      mkLauncherHostProgramsPolicyRejectCheck =
+        system: pkgs:
+        let
+          launcher = mkLauncher system;
+        in
+        pkgs.runCommand "verstak-host-programs-policy-rejects-unknown" { } ''
+          cat >bad-policy.json <<'JSON'
+          {"allow": [], "unexpected": true}
+          JSON
+          mkdir -p state home
+          set +e
+          HOME="$PWD/home" VERSTAK_STATE_DIR="$PWD/state" ${launcher} --host-programs-policy bad-policy.json bash >stdout.log 2>stderr.log
+          status=$?
+          set -e
+          test "$status" -ne 0
+          grep -q "host-program policy must be a JSON object with only allow/forbid arrays" stderr.log
+          touch "$out"
+        '';
     in
     {
       lib = {
@@ -218,6 +279,7 @@
             ./nix/verstak/options.nix
             ./nix/verstak/core.nix
             ./nix/verstak/modules/networking.nix
+            ./nix/verstak/modules/host-programs.nix
             ./nix/verstak/modules/headless-runner.nix
             ./nix/verstak/profiles/headless.nix
             ./nix/verstak/profiles/gui.nix
@@ -230,6 +292,7 @@
         default = mkLauncher system;
         verstak = mkLauncher system;
         allowlist-proxy = mkAllowlistProxy system;
+        host-program-proxy = mkHostProgramProxy system;
       });
 
       devShells = forAllSystems (
@@ -261,13 +324,18 @@
           pkgs = mkPkgs system;
           evalCheck = mkProfileEvalCheck system pkgs;
           policyCheck = mkPolicySemanticCheck system pkgs;
+          hostProgramPolicyCheck = mkHostProgramPolicySemanticCheck system pkgs;
           customPolicyCheck = mkCustomPolicySemanticCheck system pkgs;
           launcherAliasCheck = mkLauncherAliasCheck system pkgs;
+          launcherHostProgramsHelpCheck = mkLauncherHostProgramsHelpCheck system pkgs;
+          launcherHostProgramsPolicyRejectCheck = mkLauncherHostProgramsPolicyRejectCheck system pkgs;
         in
         {
           formatting = treefmtEval.${system}.config.build.check self;
 
           allowlist-proxy = mkAllowlistProxy system;
+
+          host-program-proxy = mkHostProgramProxy system;
 
           deadnix = mkLintCheck pkgs "deadnix" [ pkgs.deadnix ] ''
             deadnix --fail .
@@ -283,6 +351,10 @@
           };
 
           launcher-openai-alias-rejects-noncodex = launcherAliasCheck;
+
+          launcher-host-programs-help = launcherHostProgramsHelpCheck;
+
+          launcher-host-programs-policy-rejects-unknown = launcherHostProgramsPolicyRejectCheck;
 
           pre-commit = git-hooks.lib.${system}.run {
             src = self.outPath;
@@ -355,6 +427,26 @@
               })
               ''
                 jq -e '.allowedDomains == ["api.openai.com", "chatgpt.com"]' policy.json
+              '';
+
+          eval-host-program-policy =
+            hostProgramPolicyCheck "host-program-policy"
+              {
+                hostProgramsJson = builtins.toJSON [ "git" ];
+                hostProgramsPolicyJson = builtins.toJSON {
+                  forbid = [
+                    {
+                      program = "git";
+                      argvPrefix = [ "push" ];
+                    }
+                  ];
+                };
+              }
+              ''
+                jq -e '.allow == [{"argvPrefix":[],"program":"git"}]' policy.json
+                jq -e '.forbid == [{"argvPrefix":["push"],"program":"git"}]' policy.json
+                jq -e '.projectMount == "/workspace/project"' policy.json
+                jq -e '.auditLog | test("/tmp/verstak-host-program-policy/host-programs/audit.jsonl$")' policy.json
               '';
 
           eval-codex-internet = evalCheck "codex-internet" {

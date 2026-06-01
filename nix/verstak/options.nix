@@ -12,6 +12,29 @@ let
     types.path
     types.str
   ];
+  hostProgramRuleType = types.submodule {
+    options = {
+      program = mkOption {
+        type = types.str;
+        description = ''
+          Host PATH program name requested by the guest stub. Program names are
+          validated by the host-program module before policy serialization and
+          by the host-side proxy before execution.
+        '';
+      };
+
+      argvPrefix = mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+        description = ''
+          Exact argv token prefix matched after the program name. An empty list
+          matches the whole program. Forbid rules are evaluated before allow
+          rules, so { program = "git"; argvPrefix = [ "push" ]; } denies
+          git push even when git is otherwise allowed.
+        '';
+      };
+    };
+  };
 in
 {
   options.verstak = {
@@ -202,6 +225,28 @@ in
       };
     };
 
+    hostPrograms = {
+      allow = mkOption {
+        type = types.listOf hostProgramRuleType;
+        default = [ ];
+        description = ''
+          Host programs allowed for guest delegation. Each rule names a host
+          PATH program and an optional argv token prefix. No host-program stubs
+          or QEMU guest-forward endpoint are generated when this list is empty.
+        '';
+      };
+
+      forbid = mkOption {
+        type = types.listOf hostProgramRuleType;
+        default = [ ];
+        description = ''
+          Host-program deny rules. Matching forbid rules override matching
+          allow rules and are enforced by the host-side proxy before any host
+          executable is resolved or started.
+        '';
+      };
+    };
+
     command = {
       argv = mkOption {
         type = types.listOf types.str;
@@ -298,6 +343,27 @@ in
             config.verstak.vm.home;
         internal = true;
         description = "Derived guest home directory.";
+      };
+
+      hostProgramGuestAddress = mkOption {
+        type = types.str;
+        default = "10.0.2.101";
+        internal = true;
+        description = "Guest-visible QEMU guestfwd address for host-program proxy requests.";
+      };
+
+      hostProgramGuestPort = mkOption {
+        type = types.port;
+        default = 22022;
+        internal = true;
+        description = "Guest-visible QEMU guestfwd TCP port for host-program proxy requests.";
+      };
+
+      hostProgramGuestFwds = mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+        internal = true;
+        description = "QEMU guestfwd command fragments produced by the host-program module.";
       };
     };
 

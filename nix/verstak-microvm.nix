@@ -25,6 +25,8 @@
   codexAppServerPort ? 4500,
   codexAppServerHostAddress ? "127.0.0.1",
   networkMode ? "deny",
+  hostProgramsJson ? "[]",
+  hostProgramsPolicyJson ? ''{"allow":[],"forbid":[]}'',
   storeOverlaySizeMb ? 4096,
   tmpfsSize ? "1G",
   agentBasePath ? ../agents/vm-base.md,
@@ -51,6 +53,28 @@ let
       "headless";
   command = builtins.fromJSON commandJson;
   extraFlakeRefs = builtins.fromJSON extraFlakesJson;
+  hostProgramNames = builtins.fromJSON hostProgramsJson;
+  rawHostProgramPolicy = builtins.fromJSON hostProgramsPolicyJson;
+  hostProgramPolicy =
+    if builtins.isAttrs rawHostProgramPolicy then
+      rawHostProgramPolicy
+    else
+      throw "hostProgramsPolicyJson must decode to a JSON object";
+  hostProgramPolicyUnexpectedKeys = lib.subtractLists [
+    "allow"
+    "forbid"
+  ] (builtins.attrNames hostProgramPolicy);
+  checkedHostProgramPolicy =
+    if hostProgramPolicyUnexpectedKeys == [ ] then
+      hostProgramPolicy
+    else
+      throw "hostProgramsPolicyJson has unsupported keys: ${lib.concatStringsSep ", " hostProgramPolicyUnexpectedKeys}";
+  hostProgramNameRules = map (program: {
+    inherit program;
+    argvPrefix = [ ];
+  }) hostProgramNames;
+  hostProgramPolicyAllow = checkedHostProgramPolicy.allow or [ ];
+  hostProgramPolicyForbid = checkedHostProgramPolicy.forbid or [ ];
   extraFlakes = map builtins.getFlake extraFlakeRefs;
   builtinProfileNames = [
     "codex"
@@ -117,6 +141,11 @@ let
         mode = networkMode;
       };
 
+      hostPrograms = {
+        allow = hostProgramNameRules ++ hostProgramPolicyAllow;
+        forbid = hostProgramPolicyForbid;
+      };
+
       terminal = {
         rows = ttyRows;
         columns = ttyColumns;
@@ -146,6 +175,7 @@ lib.nixosSystem {
     ./verstak/options.nix
     ./verstak/core.nix
     ./verstak/modules/networking.nix
+    ./verstak/modules/host-programs.nix
     ./verstak/modules/headless-runner.nix
     ./verstak/profiles/headless.nix
     ./verstak/profiles/gui.nix

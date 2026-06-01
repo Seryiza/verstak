@@ -7,11 +7,18 @@
 
 let
   cfg = config.verstak;
-  networkEnabled = cfg.network.mode != "deny";
+  inherit (cfg.internal) hostProgramGuestFwds;
+  hostProgramProxyEnabled = hostProgramGuestFwds != [ ];
+  networkEnabled = cfg.network.mode != "deny" || hostProgramProxyEnabled;
   internetNetwork = cfg.network.mode == "internet";
   allowlistNetwork = cfg.network.mode == "allowlist";
-  rootlessAllowlist = allowlistNetwork;
   guestPolicyEnabled = internetNetwork;
+  activeAllowlistGuestFwds = lib.optionals allowlistNetwork allowlistGuestFwds;
+  restrictedHostProgramGuestFwds = lib.optionals (!internetNetwork) hostProgramGuestFwds;
+  internetHostProgramGuestFwds = lib.optionals internetNetwork hostProgramGuestFwds;
+  restrictedGuestFwds = activeAllowlistGuestFwds ++ restrictedHostProgramGuestFwds;
+  restrictedUserNetwork = restrictedGuestFwds != [ ];
+  internetHostProgramUserNetwork = internetNetwork && internetHostProgramGuestFwds != [ ];
   nftSet = ranges: "{ ${lib.concatStringsSep ", " ranges} }";
   normalizeAllowlistDomain =
     domain:
@@ -116,7 +123,7 @@ in
 
   microvm = {
     interfaces = lib.mkForce (
-      lib.optionals (networkEnabled && !rootlessAllowlist) [
+      lib.optionals (networkEnabled && !restrictedUserNetwork) [
         {
           type = "user";
           id = "usernet";
@@ -125,17 +132,28 @@ in
       ]
     );
 
-    qemu.extraArgs = lib.mkIf rootlessAllowlist [
-      # QEMU guestfwd uses a host-side command for each proxied connection.
-      # Keep QEMU's seccomp sandbox enabled but explicitly allow spawning that
-      # proxy command.
-      "-sandbox"
-      "on,spawn=allow"
-      "-netdev"
-      "user,id=usernet,restrict=on,${lib.concatStringsSep "," allowlistGuestFwds}"
-      "-device"
-      "virtio-net-device,netdev=usernet,mac=02:00:00:00:00:01"
-    ];
+    qemu.extraArgs =
+      lib.optionals restrictedUserNetwork [
+        # QEMU guestfwd uses host-side commands for proxied connections. Keep
+        # QEMU's seccomp sandbox enabled but explicitly allow spawning those
+        # proxy commands.
+        "-sandbox"
+        "on,spawn=allow"
+        "-netdev"
+        "user,id=usernet,restrict=on,${lib.concatStringsSep "," restrictedGuestFwds}"
+        "-device"
+        "virtio-net-device,netdev=usernet,mac=02:00:00:00:00:01"
+      ]
+      ++ lib.optionals internetHostProgramUserNetwork [
+        # Preserve Internet mode's normal user network and add a separate
+        # unrestricted host-program guestfwd device for the proxy channel.
+        "-sandbox"
+        "on,spawn=allow"
+        "-netdev"
+        "user,id=hostprogramnet,restrict=off,${lib.concatStringsSep "," internetHostProgramGuestFwds}"
+        "-device"
+        "virtio-net-device,netdev=hostprogramnet,mac=02:00:00:00:00:02"
+      ];
 
     forwardPorts = lib.mkForce (
       lib.optionals (internetNetwork && cfg.codex.enable) [
@@ -152,7 +170,7 @@ in
   networking = {
     useDHCP = lib.mkDefault networkEnabled;
     enableIPv6 = lib.mkIf networkEnabled false;
-    nameservers = lib.mkIf networkEnabled (
+    nameservers = lib.mkIf (cfg.network.mode != "deny") (
       if allowlistNetwork then [ "127.0.0.1" ] else cfg.network.dnsServers
     );
     dhcpcd.extraConfig = lib.mkIf networkEnabled "nohook resolv.conf";
