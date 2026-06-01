@@ -27,16 +27,36 @@ const (
 var programNamePattern = regexp.MustCompile(`^[A-Za-z0-9._+-]+$`)
 
 type rawPolicy struct {
-	Allow        []rule `json:"allow"`
-	Forbid       []rule `json:"forbid"`
-	ProjectRoot  string `json:"projectRoot"`
-	ProjectMount string `json:"projectMount"`
-	AuditLog     string `json:"auditLog"`
+	Allow        []string `json:"allow"`
+	Forbid       []string `json:"forbid"`
+	ProjectRoot  string   `json:"projectRoot"`
+	ProjectMount string   `json:"projectMount"`
+	AuditLog     string   `json:"auditLog"`
 }
 
 type rule struct {
-	Program    string   `json:"program"`
-	ArgvPrefix []string `json:"argvPrefix"`
+	Program    string
+	ArgvPrefix []string
+}
+
+func parseRuleString(value string) (rule, error) {
+	tokens := strings.Fields(value)
+	if len(tokens) == 0 {
+		return rule{}, errors.New("rule string must not be empty")
+	}
+	return rule{Program: tokens[0], ArgvPrefix: append([]string(nil), tokens[1:]...)}, nil
+}
+
+func parseRuleStrings(kind string, values []string) ([]rule, error) {
+	rules := make([]rule, 0, len(values))
+	for i, value := range values {
+		r, err := parseRuleString(value)
+		if err != nil {
+			return nil, fmt.Errorf("%s[%d]: %w", kind, i, err)
+		}
+		rules = append(rules, r)
+	}
+	return rules, nil
 }
 
 type policy struct {
@@ -161,14 +181,25 @@ func loadPolicy(path string) (*policy, error) {
 	dec.DisallowUnknownFields()
 	var raw rawPolicy
 	if err := dec.Decode(&raw); err != nil {
+		if strings.Contains(err.Error(), "rawPolicy.allow") || strings.Contains(err.Error(), "rawPolicy.forbid") {
+			return nil, fmt.Errorf("parse %s: allow/forbid entries must be string token-prefix rules: %w", path, err)
+		}
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
 	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("parse %s: trailing JSON data", path)
 	}
+	allow, err := parseRuleStrings("allow", raw.Allow)
+	if err != nil {
+		return nil, err
+	}
+	forbid, err := parseRuleStrings("forbid", raw.Forbid)
+	if err != nil {
+		return nil, err
+	}
 	pol := &policy{
-		allow:        append([]rule(nil), raw.Allow...),
-		forbid:       append([]rule(nil), raw.Forbid...),
+		allow:        allow,
+		forbid:       forbid,
 		projectRoot:  filepath.Clean(raw.ProjectRoot),
 		projectMount: filepath.Clean(raw.ProjectMount),
 		auditLog:     raw.AuditLog,
@@ -211,7 +242,7 @@ func validateRule(r rule) error {
 	}
 	for i, token := range r.ArgvPrefix {
 		if strings.ContainsRune(token, '\x00') {
-			return fmt.Errorf("argvPrefix[%d] contains NUL", i)
+			return fmt.Errorf("argument prefix token %d contains NUL", i)
 		}
 	}
 	return nil

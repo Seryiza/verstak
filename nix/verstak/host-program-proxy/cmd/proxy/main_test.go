@@ -16,8 +16,8 @@ import (
 
 func TestRunWithDepsAllowsAndStreamsExitStatus(t *testing.T) {
 	policyPath, _ := writePolicy(t, `{
-		"allow": [{"program": "git", "argvPrefix": []}],
-		"forbid": [{"program": "git", "argvPrefix": ["push"]}],
+		"allow": ["git"],
+		"forbid": ["git push"],
 		"projectRoot": "`+escapeJSON(t.TempDir())+`",
 		"projectMount": "/workspace/project",
 		"auditLog": "`+escapeJSON(filepath.Join(t.TempDir(), "audit.jsonl"))+`"
@@ -132,10 +132,56 @@ func TestRunWithDepsMissingExecutableReturns127(t *testing.T) {
 	}
 }
 
+func TestLoadPolicyAcceptsStringRules(t *testing.T) {
+	path, _ := writePolicy(t, `{
+		"allow": ["git"],
+		"forbid": ["git push"],
+		"projectRoot": "/tmp/project",
+		"projectMount": "/workspace/project",
+		"auditLog": "/tmp/audit.jsonl"
+	}`)
+	pol, err := loadPolicy(path)
+	if err != nil {
+		t.Fatalf("loadPolicy() error = %v", err)
+	}
+	if len(pol.allow) != 1 || pol.allow[0].Program != "git" || len(pol.allow[0].ArgvPrefix) != 0 {
+		t.Fatalf("allow = %#v, want git with empty prefix", pol.allow)
+	}
+	if len(pol.forbid) != 1 || pol.forbid[0].Program != "git" || strings.Join(pol.forbid[0].ArgvPrefix, " ") != "push" {
+		t.Fatalf("forbid = %#v, want git push", pol.forbid)
+	}
+}
+
+func TestLoadPolicyRejectsEmptyStringRule(t *testing.T) {
+	path, _ := writePolicy(t, `{
+		"allow": ["   "],
+		"forbid": [],
+		"projectRoot": "/tmp/project",
+		"projectMount": "/workspace/project",
+		"auditLog": "/tmp/audit.jsonl"
+	}`)
+	if _, err := loadPolicy(path); err == nil || !strings.Contains(err.Error(), "rule string must not be empty") {
+		t.Fatalf("loadPolicy() error = %v, want empty string rule", err)
+	}
+}
+
+func TestLoadPolicyRejectsStructuredRule(t *testing.T) {
+	path, _ := writePolicy(t, `{
+		"allow": [{"program": "git", "argvPrefix": []}],
+		"forbid": [],
+		"projectRoot": "/tmp/project",
+		"projectMount": "/workspace/project",
+		"auditLog": "/tmp/audit.jsonl"
+	}`)
+	if _, err := loadPolicy(path); err == nil || !strings.Contains(err.Error(), "cannot unmarshal object") {
+		t.Fatalf("loadPolicy() error = %v, want object rule rejection", err)
+	}
+}
+
 func TestLoadPolicyRejectsUnknownFields(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "policy.json")
 	if err := os.WriteFile(path, []byte(`{
-		"allow": [{"program": "git", "argvPrefix": []}],
+		"allow": ["git"],
 		"forbid": [],
 		"projectRoot": "/tmp/project",
 		"projectMount": "/workspace/project",
@@ -161,8 +207,8 @@ func TestMapGuestCwd(t *testing.T) {
 
 func validPolicy(projectRoot string, auditDir string) string {
 	return `{
-		"allow": [{"program": "git", "argvPrefix": []}],
-		"forbid": [{"program": "git", "argvPrefix": ["push"]}],
+		"allow": ["git"],
+		"forbid": ["git push"],
 		"projectRoot": "` + escapeJSON(projectRoot) + `",
 		"projectMount": "/workspace/project",
 		"auditLog": "` + escapeJSON(filepath.Join(auditDir, "audit.jsonl")) + `"

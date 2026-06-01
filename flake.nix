@@ -249,16 +249,30 @@
           launcher = mkLauncher system;
         in
         pkgs.runCommand "verstak-host-programs-policy-rejects-unknown" { } ''
-          cat >bad-policy.json <<'JSON'
+          cat >bad-policy-unknown.json <<'JSON'
           {"allow": [], "unexpected": true}
+          JSON
+          cat >bad-policy-object-rule.json <<'JSON'
+          {"allow": [{"program": "git", "argvPrefix": []}], "forbid": []}
+          JSON
+          cat >bad-policy-empty-rule.json <<'JSON'
+          {"allow": ["   "], "forbid": []}
           JSON
           mkdir -p state home
           set +e
-          HOME="$PWD/home" VERSTAK_STATE_DIR="$PWD/state" ${launcher} --host-programs-policy bad-policy.json bash >stdout.log 2>stderr.log
-          status=$?
+          HOME="$PWD/home" VERSTAK_STATE_DIR="$PWD/state" ${launcher} --host-programs-policy bad-policy-unknown.json bash >stdout-unknown.log 2>stderr-unknown.log
+          unknown_status=$?
+          HOME="$PWD/home" VERSTAK_STATE_DIR="$PWD/state" ${launcher} --host-programs-policy bad-policy-object-rule.json bash >stdout-object.log 2>stderr-object.log
+          object_status=$?
+          HOME="$PWD/home" VERSTAK_STATE_DIR="$PWD/state" ${launcher} --host-programs-policy bad-policy-empty-rule.json bash >stdout-empty.log 2>stderr-empty.log
+          empty_status=$?
           set -e
-          test "$status" -ne 0
-          grep -q "host-program policy must be a JSON object with only allow/forbid arrays" stderr.log
+          test "$unknown_status" -ne 0
+          test "$object_status" -ne 0
+          test "$empty_status" -ne 0
+          grep -q "host-program policy must be a JSON object with only non-empty string allow/forbid arrays" stderr-unknown.log
+          grep -q "host-program policy must be a JSON object with only non-empty string allow/forbid arrays" stderr-object.log
+          grep -q "host-program policy must be a JSON object with only non-empty string allow/forbid arrays" stderr-empty.log
           touch "$out"
         '';
     in
@@ -434,17 +448,13 @@
               {
                 hostProgramsJson = builtins.toJSON [ "git" ];
                 hostProgramsPolicyJson = builtins.toJSON {
-                  forbid = [
-                    {
-                      program = "git";
-                      argvPrefix = [ "push" ];
-                    }
-                  ];
+                  allow = [ "gh" ];
+                  forbid = [ "git push" ];
                 };
               }
               ''
-                jq -e '.allow == [{"argvPrefix":[],"program":"git"}]' policy.json
-                jq -e '.forbid == [{"argvPrefix":["push"],"program":"git"}]' policy.json
+                jq -e '.allow == ["git","gh"]' policy.json
+                jq -e '.forbid == ["git push"]' policy.json
                 jq -e '.projectMount == "/workspace/project"' policy.json
                 jq -e '.auditLog | test("/tmp/verstak-host-program-policy/host-programs/audit.jsonl$")' policy.json
               '';

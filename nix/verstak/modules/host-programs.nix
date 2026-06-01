@@ -9,22 +9,36 @@ let
   cfg = config.verstak;
   hostProgramProxy = pkgs.callPackage ../host-program-proxy { };
   hostProgramsEnabled = cfg.hostPrograms.allow != [ ];
-  normalizeRule = rule: {
-    program = lib.trim rule.program;
-    inherit (rule) argvPrefix;
-  };
-  allowRules = map normalizeRule cfg.hostPrograms.allow;
-  forbidRules = map normalizeRule cfg.hostPrograms.forbid;
+  ruleTokens =
+    rule:
+    builtins.filter (token: builtins.isString token && token != "") (
+      builtins.split "[[:space:]]+" (lib.trim rule)
+    );
+  parseRule =
+    rule:
+    let
+      tokens = ruleTokens rule;
+    in
+    if tokens == [ ] then
+      throw "verstak.hostPrograms rules must not be empty"
+    else
+      {
+        program = builtins.head tokens;
+      };
+  allowRules = map parseRule cfg.hostPrograms.allow;
+  forbidRules = map parseRule cfg.hostPrograms.forbid;
   allRules = allowRules ++ forbidRules;
   validProgramName =
     name: name != "." && name != ".." && builtins.match "[A-Za-z0-9._+-]+" name != null;
-  invalidProgramNames = lib.filter (name: !validProgramName name) (map (rule: rule.program) allRules);
-  programNames = lib.unique (map (rule: rule.program) allowRules);
+  invalidProgramNames = lib.filter (name: name != "" && !validProgramName name) (
+    map (rule: rule.program) allRules
+  );
+  programNames = lib.unique (lib.filter (name: name != "") (map (rule: rule.program) allowRules));
   proxyAddress = "${cfg.internal.hostProgramGuestAddress}:${toString cfg.internal.hostProgramGuestPort}";
   auditLog = "${cfg.stateDir}/host-programs/audit.jsonl";
   hostProgramPolicy = {
-    allow = allowRules;
-    forbid = forbidRules;
+    allow = map lib.trim cfg.hostPrograms.allow;
+    forbid = map lib.trim cfg.hostPrograms.forbid;
     projectRoot = toString cfg.projectRoot;
     inherit (cfg) projectMount;
     inherit auditLog;

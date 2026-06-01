@@ -69,12 +69,15 @@ let
       hostProgramPolicy
     else
       throw "hostProgramsPolicyJson has unsupported keys: ${lib.concatStringsSep ", " hostProgramPolicyUnexpectedKeys}";
-  hostProgramNameRules = map (program: {
-    inherit program;
-    argvPrefix = [ ];
-  }) hostProgramNames;
-  hostProgramPolicyAllow = checkedHostProgramPolicy.allow or [ ];
-  hostProgramPolicyForbid = checkedHostProgramPolicy.forbid or [ ];
+  requireHostProgramRuleString =
+    rule:
+    if builtins.isString rule then
+      if lib.trim rule == "" then throw "hostProgramsPolicyJson rule strings must not be empty" else rule
+    else
+      throw "hostProgramsPolicyJson allow/forbid entries must be strings";
+  hostProgramNameRules = hostProgramNames;
+  hostProgramPolicyAllow = map requireHostProgramRuleString (checkedHostProgramPolicy.allow or [ ]);
+  hostProgramPolicyForbid = map requireHostProgramRuleString (checkedHostProgramPolicy.forbid or [ ]);
   extraFlakes = map builtins.getFlake extraFlakeRefs;
   builtinProfileNames = [
     "codex"

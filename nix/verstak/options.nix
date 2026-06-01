@@ -12,29 +12,6 @@ let
     types.path
     types.str
   ];
-  hostProgramRuleType = types.submodule {
-    options = {
-      program = mkOption {
-        type = types.str;
-        description = ''
-          Host PATH program name requested by the guest stub. Program names are
-          validated by the host-program module before policy serialization and
-          by the host-side proxy before execution.
-        '';
-      };
-
-      argvPrefix = mkOption {
-        type = types.listOf types.str;
-        default = [ ];
-        description = ''
-          Exact argv token prefix matched after the program name. An empty list
-          matches the whole program. Forbid rules are evaluated before allow
-          rules, so { program = "git"; argvPrefix = [ "push" ]; } denies
-          git push even when git is otherwise allowed.
-        '';
-      };
-    };
-  };
 in
 {
   options.verstak = {
@@ -227,22 +204,25 @@ in
 
     hostPrograms = {
       allow = mkOption {
-        type = types.listOf hostProgramRuleType;
+        type = types.listOf types.str;
         default = [ ];
         description = ''
-          Host programs allowed for guest delegation. Each rule names a host
-          PATH program and an optional argv token prefix. No host-program stubs
-          or QEMU guest-forward endpoint are generated when this list is empty.
+          Host programs allowed for guest delegation. Each rule is a whitespace
+          split token-prefix string such as "git" or "git status". The first
+          token names a host PATH program; remaining tokens match an argv
+          prefix. No host-program stubs or QEMU guest-forward endpoint are
+          generated when this list is empty.
         '';
       };
 
       forbid = mkOption {
-        type = types.listOf hostProgramRuleType;
+        type = types.listOf types.str;
         default = [ ];
         description = ''
-          Host-program deny rules. Matching forbid rules override matching
-          allow rules and are enforced by the host-side proxy before any host
-          executable is resolved or started.
+          Host-program deny rules, using the same token-prefix string format as
+          allow rules. Matching forbid rules override matching allow rules and
+          are enforced by the host-side proxy before any host executable is
+          resolved or started.
         '';
       };
     };

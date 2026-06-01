@@ -221,24 +221,21 @@ sudo in the VM does not grant additional host programs. The proxy validates the
 requested program, argv token prefix rules, and cwd mapping before resolving a
 host executable or starting a child process.
 
-Structured policy files use token-prefix rules:
+Policy files accept simple token-prefix rules:
 
 ```json
 {
-  "allow": [
-    { "program": "git", "argvPrefix": [] }
-  ],
-  "forbid": [
-    { "program": "git", "argvPrefix": ["push"] }
-  ]
+  "allow": ["git"],
+  "forbid": ["git push"]
 }
 ```
 
-`allow` rules permit a host PATH program and optional argv prefix. `forbid`
-rules are checked first and override matching `allow` rules. Empty
-`argvPrefix` means the whole program is allowed. Program names must be simple
-PATH names such as `git` or `gh`; arbitrary shell snippets, slashes, glob
-patterns, and regular expressions are not supported.
+Each rule is split on whitespace: the first token is the host PATH program and
+remaining tokens are an argv prefix. `allow` rules permit a host PATH program
+and optional argv prefix. `forbid` rules are checked first and override matching
+`allow` rules. A program-only rule such as `"git"` matches the whole program.
+Program names must be simple PATH names such as `git` or `gh`; arbitrary shell
+snippets, slashes, glob patterns, and regular expressions are not supported.
 
 Host commands run from the host path corresponding to the guest cwd under
 `/workspace/project`. A guest cwd outside the mounted project is rejected. The

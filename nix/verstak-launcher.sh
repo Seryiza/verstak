@@ -156,11 +156,14 @@ load_host_programs_policy() {
   local policy_path="$1"
   [ -f "$policy_path" ] || die "host-program policy file does not exist: $policy_path"
   @jq@/bin/jq -e '
+    def rule_string: type == "string" and test("[^[:space:]]");
     type == "object"
     and ((keys - ["allow", "forbid"]) | length == 0)
     and ((.allow // []) | type == "array")
     and ((.forbid // []) | type == "array")
-  ' "$policy_path" >/dev/null || die "host-program policy must be a JSON object with only allow/forbid arrays: $policy_path"
+    and all(.allow[]?; rule_string)
+    and all(.forbid[]?; rule_string)
+  ' "$policy_path" >/dev/null || die "host-program policy must be a JSON object with only non-empty string allow/forbid arrays: $policy_path"
   @jq@/bin/jq -c '{ allow: (.allow // []), forbid: (.forbid // []) }' "$policy_path"
 }
 
